@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bit Manipulation — a beginner's guide</title>
+<style>
+  :root {
+    --bg: #f6f1e7;
+    --bg-alt: #efe8d8;
+    --bg-code: #1e1b18;
+    --ink: #1c1a17;
+    --ink-soft: #5a544a;
+    --ink-faint: #8f867a;
+    --accent: #7a4a1d;
+    --on: #c74a2a;     /* red-orange for '1' bits */
+    --off: #b8a98e;    /* soft neutral for '0' bits */
+    --rule: #d9cfba;
+    --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1815; --bg-alt: #221f1a; --bg-code: #0f0d0b; --ink: #ece5d4;
+      --ink-soft: #a49b87; --ink-faint: #6f6759; --accent: #d6a066;
+      --on: #e88062; --off: #4a4238; --rule: #3a352d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1.65;
+    padding: 3rem 1.5rem 6rem;
+    display: flex;
+    justify-content: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { width: 100%; max-width: 46rem; }
+
+  h1 { font-size: 2rem; margin: 0 0 0.3rem; letter-spacing: -0.01em; }
+  .tagline {
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0 0 2rem;
+  }
+  h2 {
+    font-size: 1.35rem;
+    margin: 3rem 0 0.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--rule);
+    letter-spacing: -0.005em;
+  }
+  h3 {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin: 1.8rem 0 0.5rem;
+  }
+  p { margin: 0 0 0.9rem; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin-bottom: 0.35rem; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--bg-alt);
+    padding: 0.05rem 0.35rem;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--bg-code);
+    color: #eae1cf;
+    padding: 1rem 1.1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    margin: 0.8rem 0 1.4rem;
+  }
+  pre code { background: transparent; padding: 0; font-size: inherit; }
+  pre .k { color: #d6a066; }        /* keyword / operator */
+  pre .n { color: #e88062; }        /* number */
+  pre .c { color: #6f6759; font-style: italic; } /* comment */
+  pre .s { color: #a4c584; }        /* string */
+
+  .toc {
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    background: var(--bg-alt);
+    padding: 1rem 1.4rem;
+    border-radius: 6px;
+    margin: 0 0 2.5rem;
+  }
+  .toc a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid transparent; }
+  .toc a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .toc ol { margin: 0.4rem 0 0; padding-left: 1.4rem; }
+
+  .callout {
+    background: var(--bg-alt);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    margin: 1.4rem 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.96rem;
+    color: var(--ink-soft);
+  }
+  .callout strong { color: var(--ink); }
+
+  /* Binary strip: 8 boxes side-by-side */
+  .bits {
+    display: inline-flex;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    user-select: none;
+    vertical-align: middle;
+    margin: 0.2rem 0;
+  }
+  .bits .bit {
+    width: 1.9rem;
+    height: 1.9rem;
+    line-height: 1.9rem;
+    text-align: center;
+    background: var(--bg-alt);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    color: var(--off);
+    font-weight: 600;
+    position: relative;
+  }
+  .bits .bit.on { color: var(--on); border-color: var(--on); background: rgba(199, 74, 42, 0.08); }
+  .bits .bit .idx {
+    position: absolute;
+    top: -1.05rem;
+    left: 0; right: 0;
+    font-size: 0.6rem;
+    color: var(--ink-faint);
+    font-weight: 400;
+  }
+
+  /* Interactive playground */
+  .playground {
+    background: var(--bg-alt);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin: 1.4rem 0 2.2rem;
+    font-family: var(--font-mono);
+  }
+  .playground label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 0.3rem;
+  }
+  .playground input[type="number"], .playground input[type="text"] {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--ink);
+    width: 100%;
+    max-width: 20rem;
+  }
+  .playground .bits.interactive .bit { cursor: pointer; transition: background 100ms; }
+  .playground .bits.interactive .bit:hover { background: rgba(122, 74, 29, 0.12); }
+  .playground .row { margin-bottom: 1rem; }
+  .playground .readouts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.4rem 1rem;
+    font-size: 0.9rem;
+    margin-top: 0.8rem;
+  }
+  .playground .readouts .label {
+    color: var(--ink-faint);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    align-self: center;
+  }
+  .playground .readouts .val { color: var(--ink); }
+  .playground .out {
+    background: var(--bg);
+    padding: 0.6rem 0.8rem;
+    border-radius: 4px;
+    border: 1px solid var(--rule);
+    font-size: 0.9rem;
+    color: var(--ink);
+    min-height: 1.4rem;
+  }
+  .playground .out.err { color: #c74a2a; }
+
+  table {
+    border-collapse: collapse;
+    margin: 0.6rem 0 1.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+  }
+  th, td {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--rule);
+    text-align: center;
+  }
+  th {
+    background: var(--bg-alt);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  footer {
+    margin-top: 5rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bit manipulation</h1>
+  <p class="tagline">a beginner's guide with a live playground</p>
+
+  <p>
+    This is a walk from "what even is a bit" to the handful of clever tricks
+    every programmer eventually reaches for. Read top to bottom; play with the
+    interactive strips as you go &mdash; clicking bits is the fastest way to
+    build intuition.
+  </p>
+
+  <div class="toc">
+    <strong>Contents</strong>
+    <ol>
+      <li><a href="#bits">Bits, bytes, and binary</a></li>
+      <li><a href="#reading">Reading binary and hex</a></li>
+      <li><a href="#ops">The six bitwise operators</a></li>
+      <li><a href="#playground">Interactive playground</a></li>
+      <li><a href="#tricks">The essential bit tricks</a></li>
+      <li><a href="#masks">Bitmasks: an int as a bag of flags</a></li>
+      <li><a href="#pitfalls">Common pitfalls</a></li>
+      <li><a href="#exercises">Practice exercises</a></li>
+    </ol>
+  </div>
+
+  <h2 id="bits">1. Bits, bytes, and binary</h2>
+
+  <p>
+    A <strong>bit</strong> is a single 1 or 0. Computers store everything &mdash;
+    numbers, letters, images, this webpage &mdash; as long sequences of bits.
+  </p>
+
+  <p>
+    A group of 8 bits is called a <strong>byte</strong>. One byte can represent
+    2<sup>8</sup> = 256 different values. That's enough for numbers 0&ndash;255
+    or for a single character of text.
+  </p>
+
+  <p>Here's the number <strong>13</strong> stored in 8 bits:</p>
+
+  <div class="bits" aria-label="13 in binary">
+    <span class="bit"><span class="idx">7</span>0</span>
+    <span class="bit"><span class="idx">6</span>0</span>
+    <span class="bit"><span class="idx">5</span>0</span>
+    <span class="bit"><span class="idx">4</span>0</span>
+    <span class="bit on"><span class="idx">3</span>1</span>
+    <span class="bit on"><span class="idx">2</span>1</span>
+    <span class="bit"><span class="idx">1</span>0</span>
+    <span class="bit on"><span class="idx">0</span>1</span>
+  </div>
+
+  <p>
+    Read right to left. Each position has a value: 1, 2, 4, 8, 16, 32, 64, 128
+    (each is double the last &mdash; powers of two). Add up the positions with a
+    <code>1</code> in them:
+  </p>
+
+  <p style="text-align: center; font-family: var(--font-mono);">
+    8 + 4 + 1 = <strong>13</strong>
+  </p>
+
+  <div class="callout">
+    <strong>Why powers of two?</strong> Binary is base-2 for the same reason
+    decimal is base-10. In decimal, the digit positions are 1, 10, 100, 1000. In
+    binary they're 1, 2, 4, 8, 16. Same idea, different base.
+  </div>
+
+  <h2 id="reading">2. Reading binary and hex</h2>
+
+  <p>Programmers write numbers three ways:</p>
+
+  <table>
+    <thead>
+      <tr><th>Format</th><th>Prefix</th><th>Example</th><th>Same as</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Decimal</td><td>&mdash;</td><td>13</td><td>13</td></tr>
+      <tr><td>Binary</td><td>0b</td><td>0b1101</td><td>13</td></tr>
+      <tr><td>Hex</td><td>0x</td><td>0x0D</td><td>13</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    <strong>Hex is compact binary.</strong> Each hex digit maps to exactly 4
+    bits, so <code>0xFF</code> is 8 bits all on = 255, and <code>0x80</code> is
+    just the top bit of a byte. When you see hex in code, mentally chunk it as
+    groups of 4 bits.
+  </p>
+
+  <pre><code><span class="c">// all four of these are the same number: 173</span>
+<span class="k">const</span> a = <span class="n">173</span>;
+<span class="k">const</span> b = <span class="n">0b10101101</span>;
+<span class="k">const</span> c = <span class="n">0xAD</span>;
+<span class="k">const</span> d = <span class="n">0o255</span>;   <span class="c">// octal, rarely used</span></code></pre>
+
+  <h2 id="ops">3. The six bitwise operators</h2>
+
+  <p>
+    These operators work on numbers <em>one bit at a time</em>, in parallel
+    across all positions. In most languages the symbols are the same as below
+    (JavaScript, C, C++, Java, Python, Rust, Go all agree).
+  </p>
+
+  <h3>AND &nbsp;<code>&amp;</code></h3>
+  <p>The output bit is 1 only if <em>both</em> input bits are 1.</p>
+  <table>
+    <thead><tr><th>a</th><th>b</th><th>a &amp; b</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>0</td><td>0</td></tr>
+      <tr><td>0</td><td>1</td><td>0</td></tr>
+      <tr><td>1</td><td>0</td><td>0</td></tr>
+      <tr><td>1</td><td>1</td><td>1</td></tr>
+    </tbody>
+  </table>
+  <p>Use it to <strong>mask off</strong> (keep) certain bits and zero the rest.</p>
+
+  <h3>OR &nbsp;<code>|</code></h3>
+  <p>The output bit is 1 if <em>either</em> input bit is 1.</p>
+  <table>
+    <thead><tr><th>a</th><th>b</th><th>a | b</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>0</td><td>0</td></tr>
+      <tr><td>0</td><td>1</td><td>1</td></tr>
+      <tr><td>1</td><td>0</td><td>1</td></tr>
+      <tr><td>1</td><td>1</td><td>1</td></tr>
+    </tbody>
+  </table>
+  <p>Use it to <strong>turn bits on</strong>.</p>
+
+  <h3>XOR &nbsp;<code>^</code></h3>
+  <p>Exclusive OR: 1 if the bits <em>differ</em>.</p>
+  <table>
+    <thead><tr><th>a</th><th>b</th><th>a ^ b</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>0</td><td>0</td></tr>
+      <tr><td>0</td><td>1</td><td>1</td></tr>
+      <tr><td>1</td><td>0</td><td>1</td></tr>
+      <tr><td>1</td><td>1</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <p>Use it to <strong>toggle</strong> bits, or to detect differences.</p>
+
+  <h3>NOT &nbsp;<code>~</code></h3>
+  <p>Unary. Flips every bit: 0 becomes 1, 1 becomes 0.</p>
+
+  <h3>Left shift &nbsp;<code>&lt;&lt;</code></h3>
+  <p>
+    Slides bits to the left by <em>n</em> positions, filling zeros on the
+    right. <code>1 &lt;&lt; 3</code> moves the bit at position 0 to position 3,
+    giving <code>0b1000</code> = 8. Equivalent to multiplying by 2<sup>n</sup>.
+  </p>
+
+  <h3>Right shift &nbsp;<code>&gt;&gt;</code></h3>
+  <p>
+    Slides bits to the right, dropping the ones that fall off. Equivalent to
+    integer division by 2<sup>n</sup>. (Signed vs. unsigned right shift matters
+    for negative numbers &mdash; more on that in <a href="#pitfalls">pitfalls</a>.)
+  </p>
+
+  <h2 id="playground">4. Interactive playground</h2>
+
+  <p>
+    Click any bit to toggle it. The decimal and hex values update instantly.
+    Then try the expression evaluator below to see what <code>a &amp; b</code>,
+    <code>a | b</code>, and so on actually produce.
+  </p>
+
+  <div class="playground">
+    <div class="row">
+      <label>Click bits to toggle (bit 7 &rarr; bit 0)</label>
+      <div class="bits interactive" id="pg-bits"></div>
+    </div>
+    <div class="readouts">
+      <span class="label">Binary</span><span class="val" id="pg-bin">00000000</span>
+      <span class="label">Decimal</span><span class="val" id="pg-dec">0</span>
+      <span class="label">Hex</span><span class="val" id="pg-hex">0x00</span>
+    </div>
+  </div>
+
+  <div class="playground">
+    <div class="row">
+      <label>Live expression (variables: <code>a</code>, <code>b</code>; operators: <code>&amp; | ^ ~ &lt;&lt; &gt;&gt;</code>)</label>
+    </div>
+    <div class="row">
+      <label>a</label>
+      <input type="number" id="expr-a" value="12" min="0" max="255" />
+    </div>
+    <div class="row">
+      <label>b</label>
+      <input type="number" id="expr-b" value="10" min="0" max="255" />
+    </div>
+    <div class="row">
+      <label>expression</label>
+      <input type="text" id="expr-input" value="a & b" />
+    </div>
+    <div class="row">
+      <label>result</label>
+      <div class="out" id="expr-out">&mdash;</div>
+    </div>
+    <div class="readouts">
+      <span class="label">In binary</span><span class="val" id="expr-bin">&mdash;</span>
+    </div>
+  </div>
+
+  <h2 id="tricks">5. The essential bit tricks</h2>
+
+  <p>
+    These are the patterns worth memorizing. They come up constantly: in
+    interview problems, embedded code, graphics, compression, cryptography,
+    game development, and low-level systems work.
+  </p>
+
+  <h3>Check if bit <em>k</em> is set</h3>
+  <pre><code><span class="k">const</span> isSet = (n &amp; (<span class="n">1</span> &lt;&lt; k)) !== <span class="n">0</span>;</code></pre>
+  <p>
+    Build a mask with a 1 only at position <em>k</em>, then AND with <em>n</em>.
+    If the result is non-zero, that bit was on.
+  </p>
+
+  <h3>Set bit <em>k</em></h3>
+  <pre><code>n = n | (<span class="n">1</span> &lt;&lt; k);</code></pre>
+
+  <h3>Clear bit <em>k</em></h3>
+  <pre><code>n = n &amp; ~(<span class="n">1</span> &lt;&lt; k);</code></pre>
+  <p>
+    <code>~(1 &lt;&lt; k)</code> is a mask of all 1s <em>except</em> position
+    <em>k</em>. ANDing with it wipes only that bit.
+  </p>
+
+  <h3>Toggle bit <em>k</em></h3>
+  <pre><code>n = n ^ (<span class="n">1</span> &lt;&lt; k);</code></pre>
+
+  <h3>Check even / odd</h3>
+  <pre><code><span class="k">const</span> isOdd = (n &amp; <span class="n">1</span>) === <span class="n">1</span>;</code></pre>
+  <p>The lowest bit is the "1s" place; if it's on, the number is odd.</p>
+
+  <h3>Multiply / divide by 2</h3>
+  <pre><code>n &lt;&lt; <span class="n">1</span>   <span class="c">// n * 2</span>
+n &gt;&gt; <span class="n">1</span>   <span class="c">// n / 2  (integer, drops remainder)</span></code></pre>
+
+  <h3>Is <em>n</em> a power of 2?</h3>
+  <pre><code><span class="k">const</span> isPow2 = n &gt; <span class="n">0</span> &amp;&amp; (n &amp; (n - <span class="n">1</span>)) === <span class="n">0</span>;</code></pre>
+  <p>
+    Powers of 2 have exactly one bit set. Subtracting 1 flips that bit off and
+    turns every lower bit on (e.g. <code>8 = 0b1000</code>,
+    <code>7 = 0b0111</code>). ANDing them gives 0. Elegant.
+  </p>
+
+  <h3>Isolate the lowest set bit</h3>
+  <pre><code><span class="k">const</span> lowest = n &amp; -n;</code></pre>
+  <p>
+    Uses two's-complement negation. If <code>n = 0b0110_1100</code>, then
+    <code>-n = 0b1001_0100</code>, and AND gives <code>0b0000_0100</code> &mdash;
+    only the rightmost 1 survives.
+  </p>
+
+  <h3>Count set bits (Brian Kernighan's trick)</h3>
+  <pre><code><span class="k">function</span> popcount(n) {
+  <span class="k">let</span> count = <span class="n">0</span>;
+  <span class="k">while</span> (n) {
+    n &amp;= n - <span class="n">1</span>;   <span class="c">// turns off the lowest set bit</span>
+    count++;
+  }
+  <span class="k">return</span> count;
+}</code></pre>
+  <p>
+    Loops exactly once per set bit &mdash; much faster than scanning all 32
+    positions when the number is sparse.
+  </p>
+
+  <h3>Swap two variables without a temp</h3>
+  <pre><code>a ^= b;
+b ^= a;
+a ^= b;</code></pre>
+  <p>
+    Cute but almost never useful in real code &mdash; a temp variable is
+    clearer and often faster. Good to recognize if you see it.
+  </p>
+
+  <h2 id="masks">6. Bitmasks: an int as a bag of flags</h2>
+
+  <p>
+    A common real-world use: pack several yes/no flags into one integer instead
+    of using a struct with a bunch of booleans.
+  </p>
+
+  <pre><code><span class="c">// declare flags as powers of 2</span>
+<span class="k">const</span> READ    = <span class="n">1</span> &lt;&lt; <span class="n">0</span>;   <span class="c">// 0b0001</span>
+<span class="k">const</span> WRITE   = <span class="n">1</span> &lt;&lt; <span class="n">1</span>;   <span class="c">// 0b0010</span>
+<span class="k">const</span> EXECUTE = <span class="n">1</span> &lt;&lt; <span class="n">2</span>;   <span class="c">// 0b0100</span>
+<span class="k">const</span> ADMIN   = <span class="n">1</span> &lt;&lt; <span class="n">3</span>;   <span class="c">// 0b1000</span>
+
+<span class="c">// combine with OR</span>
+<span class="k">let</span> perms = READ | WRITE;         <span class="c">// 0b0011</span>
+
+<span class="c">// test with AND</span>
+<span class="k">if</span> (perms &amp; WRITE) { <span class="c">/* has write */</span> }
+
+<span class="c">// grant execute</span>
+perms |= EXECUTE;                  <span class="c">// 0b0111</span>
+
+<span class="c">// revoke write</span>
+perms &amp;= ~WRITE;                   <span class="c">// 0b0101</span></code></pre>
+
+  <p>
+    You'll see this in filesystem permissions (chmod!), CSS event listeners,
+    graphics APIs, compression flags &mdash; anywhere someone wants a compact,
+    fast "set of options".
+  </p>
+
+  <h2 id="pitfalls">7. Common pitfalls</h2>
+
+  <ul>
+    <li>
+      <strong>Operator precedence.</strong> <code>a &amp; b == c</code> parses
+      as <code>a &amp; (b == c)</code> in most C-family languages, which is
+      almost never what you want. Wrap comparisons in parentheses:
+      <code>(a &amp; b) == c</code>.
+    </li>
+    <li>
+      <strong>Signed vs. unsigned right shift.</strong> In JavaScript,
+      <code>&gt;&gt;</code> preserves the sign bit (arithmetic shift) while
+      <code>&gt;&gt;&gt;</code> fills with zeros (logical shift). C and C++
+      leave signed right-shift as implementation-defined &mdash; check your
+      types.
+    </li>
+    <li>
+      <strong>Integer width.</strong> Bit tricks assume you know how many bits
+      you have. In JavaScript, bitwise operators secretly convert to 32-bit
+      signed integers, so <code>1 &lt;&lt; 31</code> is negative. Python
+      integers are arbitrary precision, so no such trap. C uses whatever type
+      you gave it &mdash; <code>uint8_t</code> vs. <code>int</code> matters.
+    </li>
+    <li>
+      <strong>Don't reach for bit tricks first.</strong> They're fast and
+      compact but often less readable. Use them when there's a real reason
+      (hot loop, embedded, protocol parsing) or when the intent is clearly a
+      bitset. Otherwise prefer normal code.
+    </li>
+  </ul>
+
+  <h2 id="exercises">8. Practice exercises</h2>
+
+  <p>Try these before peeking at the hints. Use the playground to check answers.</p>
+
+  <ol>
+    <li>
+      Write a function <code>getBit(n, k)</code> that returns the value (0 or 1)
+      of the bit at position <em>k</em> of <em>n</em>.
+      <details><summary>hint</summary>
+        <code>(n &gt;&gt; k) &amp; 1</code>
+      </details>
+    </li>
+    <li>
+      Write a function that reverses the 8 bits of a byte.
+      <code>0b10110000</code> &rarr; <code>0b00001101</code>.
+      <details><summary>hint</summary>
+        Loop <em>i</em> from 0 to 7. For each bit that's on in the input, set
+        bit <code>7 - i</code> in the output.
+      </details>
+    </li>
+    <li>
+      Count how many bits differ between two numbers (Hamming distance).
+      <details><summary>hint</summary>
+        <code>popcount(a ^ b)</code>. XOR gives 1s exactly where they differ.
+      </details>
+    </li>
+    <li>
+      Given a non-negative integer <em>n</em>, find the position of its
+      highest set bit. (Return -1 if <em>n</em> is 0.)
+      <details><summary>hint</summary>
+        Right-shift until <em>n</em> becomes 0, counting shifts. Or in many
+        languages there's a builtin: <code>Math.clz32</code> in JS,
+        <code>__builtin_clz</code> in C.
+      </details>
+    </li>
+    <li>
+      Given a set of items encoded as a bitmask, enumerate every subset.
+      <details><summary>hint</summary>
+        For a mask <em>s</em>, iterate <code>t = s; t; t = (t - 1) &amp; s</code>.
+        Classic competitive-programming trick.
+      </details>
+    </li>
+  </ol>
+
+  <footer>
+    a beginner's bit-manipulation guide &middot; keep the playground open while you read
+  </footer>
+</main>
+
+<script>
+  // ---------- Bit strip: 8 clickable bits ----------
+  (function () {
+    const container = document.getElementById('pg-bits');
+    const binOut = document.getElementById('pg-bin');
+    const decOut = document.getElementById('pg-dec');
+    const hexOut = document.getElementById('pg-hex');
+    const bits = new Array(8).fill(0); // index 0 = LSB
+
+    function render() {
+      container.innerHTML = '';
+      for (let i = 7; i >= 0; i--) {
+        const el = document.createElement('span');
+        el.className = 'bit' + (bits[i] ? ' on' : '');
+        el.innerHTML = `<span class="idx">${i}</span>${bits[i]}`;
+        el.addEventListener('click', () => {
+          bits[i] = bits[i] ? 0 : 1;
+          update();
+        });
+        container.appendChild(el);
+      }
+    }
+
+    function update() {
+      render();
+      const value = bits.reduce((acc, b, i) => acc + (b << i), 0);
+      binOut.textContent = bits.slice().reverse().join('');
+      decOut.textContent = String(value);
+      hexOut.textContent = '0x' + value.toString(16).toUpperCase().padStart(2, '0');
+    }
+
+    update();
+  })();
+
+  // ---------- Expression evaluator ----------
+  (function () {
+    const aIn = document.getElementById('expr-a');
+    const bIn = document.getElementById('expr-b');
+    const exprIn = document.getElementById('expr-input');
+    const out = document.getElementById('expr-out');
+    const binOut = document.getElementById('expr-bin');
+
+    // Allow only these characters: a, b, digits, whitespace, and & | ^ ~ < > ( ) - +
+    const SAFE = /^[ab0-9xXoObB\s&|^~<>()\-+*/%]*$/;
+
+    function evaluate() {
+      const a = Number(aIn.value) | 0;
+      const b = Number(bIn.value) | 0;
+      const src = exprIn.value;
+
+      if (!SAFE.test(src)) {
+        out.className = 'out err';
+        out.textContent = 'illegal characters in expression';
+        binOut.textContent = '—';
+        return;
+      }
+      try {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function('a', 'b', 'return (' + src + ');');
+        const result = fn(a, b) | 0; // force to 32-bit int
+        out.className = 'out';
+        out.textContent =
+          `${result}   (hex 0x${(result >>> 0).toString(16).toUpperCase()})`;
+        const asUnsigned = result >>> 0;
+        const bin = asUnsigned.toString(2).padStart(8, '0');
+        // group in 4s for readability
+        binOut.textContent = bin.length <= 8
+          ? bin
+          : bin.replace(/(.{4})(?=.)/g, '$1 ');
+      } catch (e) {
+        out.className = 'out err';
+        out.textContent = 'error: ' + e.message;
+        binOut.textContent = '—';
+      }
+    }
+
+    [aIn, bIn, exprIn].forEach((el) => el.addEventListener('input', evaluate));
+    evaluate();
+  })();
+</script>
+</body>
+</html>
