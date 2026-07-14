@@ -1,0 +1,8 @@
+title: Study Guides
+description: Interactive algorithm visualizers & notes
+
+# Files/dirs to leave out of the built site
+exclude:
+  - README.md
+  - LICENSE
+  - .gitignore
