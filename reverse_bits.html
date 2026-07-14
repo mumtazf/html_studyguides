@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reverse Bits - Divide & Conquer Visualizer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f172a; color: #e2e8f0;
+    min-height: 100vh; padding: 24px;
+  }
+  h1 { text-align: center; font-size: 1.6rem; margin-bottom: 8px; color: #38bdf8; }
+  .subtitle { text-align: center; color: #94a3b8; margin-bottom: 28px; font-size: 0.9rem; }
+  .input-section {
+    max-width: 800px; margin: 0 auto 32px; display: flex;
+    gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap;
+  }
+  .input-section label { font-weight: 600; }
+  .input-section input {
+    background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
+    padding: 8px 14px; border-radius: 8px; font-size: 1rem; width: 160px;
+  }
+  .input-section button {
+    background: #2563eb; color: #fff; border: none; padding: 8px 20px;
+    border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.95rem;
+  }
+  .input-section button:hover { background: #1d4ed8; }
+  .steps-container { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  .step-card {
+    background: #1e293b; border-radius: 14px; padding: 22px 26px;
+    border-left: 4px solid #334155; transition: border-color 0.3s;
+  }
+  .step-card.active { border-left-color: #38bdf8; }
+  .step-card h2 { font-size: 1.05rem; margin-bottom: 4px; }
+  .step-card .desc { color: #94a3b8; font-size: 0.85rem; margin-bottom: 14px; }
+  .step-card .code-line {
+    background: #0f172a; padding: 8px 14px; border-radius: 8px;
+    font-family: 'Fira Code', 'Consolas', monospace; font-size: 0.82rem;
+    margin-bottom: 14px; color: #7dd3fc; overflow-x: auto; white-space: pre;
+  }
+  .bit-row { display: flex; gap: 1px; justify-content: center; margin-bottom: 6px; flex-wrap: wrap; }
+  .bit-cell {
+    width: 26px; height: 30px; display: flex; align-items: center; justify-content: center;
+    font-family: 'Fira Code', monospace; font-size: 0.8rem; font-weight: 700;
+    border-radius: 3px; transition: all 0.3s;
+  }
+  .bit-zero { background: #1e293b; color: #64748b; }
+  .bit-one  { background: #1e3a5f; color: #38bdf8; }
+  .bit-highlight-a { background: #7c3aed; color: #fff; }
+  .bit-highlight-b { background: #059669; color: #fff; }
+  .bit-mask-zero { background: #0f172a; color: #334155; }
+  .row-label {
+    font-size: 0.75rem; color: #64748b; text-align: center;
+    margin-bottom: 2px; font-weight: 600;
+  }
+  .group-sep { width: 4px; }
+  .arrow-row {
+    display: flex; justify-content: center; align-items: center;
+    gap: 4px; margin: 4px 0; font-size: 1.1rem; color: #f59e0b;
+  }
+  .legend {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    margin: 6px 0 2px; font-size: 0.75rem; color: #94a3b8;
+  }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .legend-box { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  .mask-info {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    font-size: 0.78rem; color: #94a3b8; margin-bottom: 10px;
+  }
+  .mask-info code { color: #fbbf24; font-family: 'Fira Code', monospace; }
+  .decimal-result {
+    text-align: center; margin-top: 6px; font-size: 0.85rem; color: #94a3b8;
+  }
+  .decimal-result strong { color: #38bdf8; }
+  .overview {
+    max-width: 920px; margin: 0 auto 28px; background: #1e293b;
+    border-radius: 14px; padding: 22px 26px;
+  }
+  .overview h2 { color: #38bdf8; margin-bottom: 10px; font-size: 1.1rem; }
+  .overview p { color: #cbd5e1; font-size: 0.88rem; line-height: 1.65; }
+  .overview .analogy { color: #fbbf24; font-style: italic; margin-top: 8px; }
+
+  /* Mask intuition section */
+  .mask-intuition {
+    max-width: 920px; margin: 0 auto 32px; background: #1e293b;
+    border-radius: 14px; padding: 22px 26px; border-left: 4px solid #f59e0b;
+  }
+  .mask-intuition h2 { color: #f59e0b; margin-bottom: 14px; font-size: 1.15rem; }
+  .mask-intuition p { color: #cbd5e1; font-size: 0.88rem; line-height: 1.7; margin-bottom: 12px; }
+  .mask-intuition .key-insight {
+    background: #0f172a; border-radius: 10px; padding: 16px 20px;
+    margin: 14px 0; border-left: 3px solid #f59e0b;
+  }
+  .mask-intuition .key-insight p { margin-bottom: 6px; }
+  .mask-table {
+    width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.82rem;
+  }
+  .mask-table th {
+    background: #0f172a; color: #38bdf8; padding: 10px 12px;
+    text-align: left; border-bottom: 2px solid #334155;
+  }
+  .mask-table td {
+    padding: 10px 12px; border-bottom: 1px solid #1e293b; vertical-align: top;
+  }
+  .mask-table tr { background: #162032; }
+  .mask-table tr:nth-child(even) { background: #1a2740; }
+  .mask-table code { font-family: 'Fira Code', monospace; color: #fbbf24; }
+  .mask-table .binary-pattern {
+    font-family: 'Fira Code', monospace; font-size: 0.78rem;
+    word-break: break-all; color: #7dd3fc;
+  }
+  .building-blocks {
+    display: flex; gap: 16px; flex-wrap: wrap; margin: 14px 0;
+  }
+  .block-card {
+    background: #0f172a; border-radius: 10px; padding: 14px 18px;
+    flex: 1; min-width: 180px; border: 1px solid #334155;
+  }
+  .block-card h4 { color: #f59e0b; font-size: 0.9rem; margin-bottom: 8px; }
+  .block-card .pattern {
+    font-family: 'Fira Code', monospace; font-size: 0.85rem;
+    color: #7dd3fc; margin-bottom: 6px; letter-spacing: 1px;
+  }
+  .block-card .explanation { font-size: 0.78rem; color: #94a3b8; line-height: 1.5; }
+  .block-card .hex-val { color: #fbbf24; font-weight: 700; }
+  .formula-box {
+    background: #0f172a; border-radius: 10px; padding: 16px 20px;
+    margin: 14px 0; text-align: center;
+  }
+  .formula-box .formula {
+    font-family: 'Fira Code', monospace; font-size: 1.1rem;
+    color: #38bdf8; margin-bottom: 8px;
+  }
+  .formula-box .formula-desc { font-size: 0.8rem; color: #94a3b8; }
+  .step-mask-explain {
+    background: #0f172a; border-radius: 10px; padding: 14px 18px;
+    margin: 10px 0; border-left: 3px solid #f59e0b;
+  }
+  .step-mask-explain h4 { color: #f59e0b; font-size: 0.88rem; margin-bottom: 6px; }
+  .step-mask-explain p { font-size: 0.82rem; color: #cbd5e1; line-height: 1.6; }
+  .step-mask-explain .pattern-demo {
+    font-family: 'Fira Code', monospace; font-size: 0.78rem;
+    color: #7dd3fc; margin: 6px 0; letter-spacing: 0.5px;
+  }
+  .step-mask-explain .label-a { color: #c084fc; }
+  .step-mask-explain .label-b { color: #34d399; }
+</style>
+</head>
+<body>
+
+<h1>🔀 Reverse Bits — Divide &amp; Conquer</h1>
+<p class="subtitle">Visualizing how swap-adjacent-blocks reverses all 32 bits in 5 steps</p>
+
+<div class="overview">
+  <h2>💡 The Core Idea</h2>
+  <p>
+    Instead of reversing bits one-by-one, we reverse in <strong>progressively smaller groups</strong>:
+    first swap the two 16-bit halves, then within each half swap 8-bit blocks, then 4-bit, 2-bit, and finally 1-bit.
+    After 5 rounds every bit ends up in its mirror position.
+  </p>
+  <p class="analogy">
+    🪞 Analogy: Think of a line of 32 people. First the left 16 swap places with the right 16.
+    Then within each group of 16, the left 8 swap with the right 8. Keep halving until every pair swaps — the line is reversed!
+  </p>
+</div>
+
+<!-- ====== MASK INTUITION SECTION ====== -->
+<div class="mask-intuition">
+  <h2>🎭 Why Do the Masks Look Like That?</h2>
+
+  <p>
+    Each mask is a <strong>repeating binary pattern</strong> that selects alternating blocks of bits.
+    The pattern's "block size" matches the current step's group size. Let's build them from scratch.
+  </p>
+
+  <div class="key-insight">
+    <p><strong>🔑 The Golden Rule:</strong></p>
+    <p>
+      At each step, we want to split every group into its <span class="label-a"><strong>upper half (Mask A)</strong></span>
+      and <span class="label-b"><strong>lower half (Mask B)</strong></span>, shift them in opposite directions, then OR them together to swap.
+    </p>
+    <p>
+      <strong>Mask A</strong> = 1s in the upper half of each group, 0s in the lower half.<br>
+      <strong>Mask B</strong> = 0s in the upper half of each group, 1s in the lower half.<br>
+      → <strong>Mask B is always the bitwise complement of Mask A!</strong>
+    </p>
+  </div>
+
+  <h3 style="color:#38bdf8; margin: 18px 0 10px; font-size: 0.95rem;">🧱 The Building Blocks</h3>
+  <p>Each mask is just a small pattern repeated across 32 bits. Here's how they're constructed:</p>
+
+  <div class="building-blocks">
+    <div class="block-card">
+      <h4>Step 1: block size 16</h4>
+      <div class="pattern">
+        <span style="color:#c084fc">1111111111111111</span><span style="color:#34d399">0000000000000000</span>
+      </div>
+      <div class="explanation">
+        One group of 32 bits. Upper 16 are <span class="hex-val">1s</span>, lower 16 are <span class="hex-val">0s</span>.<br>
+        Mask A = <span class="hex-val">0xFFFF0000</span><br>
+        Mask B = <span class="hex-val">0x0000FFFF</span>
+      </div>
+    </div>
+    <div class="block-card">
+      <h4>Step 2: block size 8</h4>
+      <div class="pattern">
+        <span style="color:#c084fc">11111111</span><span style="color:#34d399">00000000</span><span style="color:#c084fc">11111111</span><span style="color:#34d399">00000000</span>
+      </div>
+      <div class="explanation">
+        Groups of 16, each split into 8+8.<br>
+        Repeating unit: <span class="hex-val">11111111 00000000</span><br>
+        Mask A = <span class="hex-val">0xFF00FF00</span><br>
+        Mask B = <span class="hex-val">0x00FF00FF</span>
+      </div>
+    </div>
+    <div class="block-card">
+      <h4>Step 3: block size 4</h4>
+      <div class="pattern">
+        <span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span>
+      </div>
+      <div class="explanation">
+        Groups of 8, each split into 4+4.<br>
+        Repeating unit: <span class="hex-val">1111 0000</span> = <span class="hex-val">0xF0</span><br>
+        Mask A = <span class="hex-val">0xF0F0F0F0</span><br>
+        Mask B = <span class="hex-val">0x0F0F0F0F</span>
+      </div>
+    </div>
+    <div class="block-card">
+      <h4>Step 4: block size 2</h4>
+      <div class="pattern">
+        <span style="color:#c084fc">11</span><span style="color:#34d399">00</span><span style="color:#c084fc">11</span><span style="color:#34d399">00</span><span style="color:#c084fc">11</span><span style="color:#34d399">00</span>…repeated
+      </div>
+      <div class="explanation">
+        Groups of 4, each split into 2+2.<br>
+        Repeating unit: <span class="hex-val">1100</span> = <span class="hex-val">0xC</span><br>
+        Mask A = <span class="hex-val">0xCCCCCCCC</span><br>
+        Mask B = <span class="hex-val">0x33333333</span>
+      </div>
+    </div>
+    <div class="block-card">
+      <h4>Step 5: block size 1</h4>
+      <div class="pattern">
+        <span style="color:#c084fc">1</span><span style="color:#34d399">0</span><span style="color:#c084fc">1</span><span style="color:#34d399">0</span><span style="color:#c084fc">1</span><span style="color:#34d399">0</span><span style="color:#c084fc">1</span><span style="color:#34d399">0</span>…repeated
+      </div>
+      <div class="explanation">
+        Groups of 2, each split into 1+1.<br>
+        Repeating unit: <span class="hex-val">10</span> = <span class="hex-val">0xA</span><br>
+        Mask A = <span class="hex-val">0xAAAAAAAA</span><br>
+        Mask B = <span class="hex-val">0x55555555</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="formula-box">
+    <div class="formula">Mask A = 1s in upper half of each group &nbsp;|&nbsp; Mask B = ~Mask A</div>
+    <div class="formula-desc">The repeating unit has length = 2 × block_size, with 1s in the first half and 0s in the second half.</div>
+  </div>
+
+  <h3 style="color:#38bdf8; margin: 18px 0 10px; font-size: 0.95rem;">📊 Summary Table</h3>
+  <table class="mask-table">
+    <thead>
+      <tr>
+        <th>Step</th>
+        <th>Block Size</th>
+        <th>Repeating Unit</th>
+        <th>Mask A (hex)</th>
+        <th>Mask B (hex)</th>
+        <th>Shift</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>16</td>
+        <td class="binary-pattern">1111111111111111 0000000000000000</td>
+        <td><code>0xFFFF0000</code></td>
+        <td><code>0x0000FFFF</code></td>
+        <td>16</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>8</td>
+        <td class="binary-pattern">11111111 00000000</td>
+        <td><code>0xFF00FF00</code></td>
+        <td><code>0x00FF00FF</code></td>
+        <td>8</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>4</td>
+        <td class="binary-pattern">1111 0000</td>
+        <td><code>0xF0F0F0F0</code></td>
+        <td><code>0x0F0F0F0F</code></td>
+        <td>4</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>2</td>
+        <td class="binary-pattern">11 00</td>
+        <td><code>0xCCCCCCCC</code></td>
+        <td><code>0x33333333</code></td>
+        <td>2</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>1</td>
+        <td class="binary-pattern">1 0</td>
+        <td><code>0xAAAAAAAA</code></td>
+        <td><code>0x55555555</code></td>
+        <td>1</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="key-insight">
+    <p><strong>🧠 Why does the shift amount equal the block size?</strong></p>
+    <p>
+      Because each half of the group is exactly <em>block_size</em> bits wide. To move the upper half down to the lower position, you shift <strong>right</strong> by block_size. To move the lower half up, you shift <strong>left</strong> by block_size. They cross over perfectly — like two trains swapping tracks.
+    </p>
+  </div>
+
+  <h3 style="color:#38bdf8; margin: 18px 0 10px; font-size: 0.95rem;">🔍 Why Does This Reverse Everything?</h3>
+  <p>
+    Think of it as <strong>5 rounds of a tournament bracket in reverse</strong>. In a normal tournament, neighbors pair up, winners advance to groups of 4, then 8, 16, 32. Here we're running it backwards:
+  </p>
+  <p>
+    <strong>Step 1</strong> reverses the order of the two 16-element halves → bits are now in the correct <em>half</em>.<br>
+    <strong>Step 2</strong> reverses within each 8-element block → bits are now in the correct <em>byte</em>.<br>
+    <strong>Step 3</strong> reverses within each 4-element block → bits are now in the correct <em>nibble</em>.<br>
+    <strong>Step 4</strong> reverses within each 2-element block → bits are now in the correct <em>pair</em>.<br>
+    <strong>Step 5</strong> reverses each adjacent pair → every bit is in its <em>final reversed position</em>.
+  </p>
+  <p>
+    After step <em>k</em>, each bit is guaranteed to be in the correct position for the <strong>bottom (32 / 2<sup>k</sup>) bits</strong> of its address. After all 5 steps, all 32 address bits are correct → the entire number is reversed.
+  </p>
+</div>
+
+<div class="input-section">
+  <label for="numInput">Enter n:</label>
+  <input id="numInput" type="number" value="43261596" min="0" max="4294967295">
+  <button onclick="visualize()">Visualize ▶</button>
+  <button onclick="animate()" style="background:#059669;">Animate ▶▶</button>
+</div>
+
+<div class="steps-container" id="stepsContainer"></div>
+
+<script>
+const STEP_DEFS = [
+  {
+    title: "Step 1 — Swap 16-bit halves",
+    desc: "Exchange the upper 16 bits and lower 16 bits.",
+    code: "n = (n >> 16) | (n << 16)",
+    blockSize: 16, maskA: 0xFFFF0000, maskB: 0x0000FFFF, shift: 16,
+    maskLabelA: "0xFFFF0000 (upper 16)",
+    maskLabelB: "0x0000FFFF (lower 16)",
+    maskIntuition: "The entire 32 bits is ONE group. We split it into the top 16 and bottom 16. The repeating unit is 16 ones followed by 16 zeros — that's 0xFFFF0000.",
+    unitPattern: "1111111111111111 0000000000000000",
+  },
+  {
+    title: "Step 2 — Swap 8-bit blocks within each half",
+    desc: "Within each 16-bit half, swap the two 8-bit bytes.",
+    code: "n = ((n & 0xFF00FF00) >> 8) | ((n & 0x00FF00FF) << 8)",
+    blockSize: 8, maskA: 0xFF00FF00, maskB: 0x00FF00FF, shift: 8,
+    maskLabelA: "0xFF00FF00 (even bytes)",
+    maskLabelB: "0x00FF00FF (odd bytes)",
+    maskIntuition: "Now each group is 16 bits. The upper 8 are 'A' and the lower 8 are 'B'. The pattern 11111111 00000000 repeats twice across 32 bits → 0xFF00FF00.",
+    unitPattern: "11111111 00000000 | 11111111 00000000",
+  },
+  {
+    title: "Step 3 — Swap 4-bit nibbles",
+    desc: "Within each 8-bit block, swap the two 4-bit nibbles.",
+    code: "n = ((n & 0xF0F0F0F0) >> 4) | ((n & 0x0F0F0F0F) << 4)",
+    blockSize: 4, maskA: 0xF0F0F0F0, maskB: 0x0F0F0F0F, shift: 4,
+    maskLabelA: "0xF0F0F0F0 (high nibbles)",
+    maskLabelB: "0x0F0F0F0F (low nibbles)",
+    maskIntuition: "Groups of 8 bits. Each group: upper 4 are A, lower 4 are B. The repeating unit is 1111 0000 = 0xF0. Repeat 4 times → 0xF0F0F0F0.",
+    unitPattern: "1111 0000 | 1111 0000 | 1111 0000 | 1111 0000",
+  },
+  {
+    title: "Step 4 — Swap 2-bit pairs",
+    desc: "Within each 4-bit nibble, swap the two 2-bit pairs.",
+    code: "n = ((n & 0xCCCCCCCC) >> 2) | ((n & 0x33333333) << 2)",
+    blockSize: 2, maskA: 0xCCCCCCCC, maskB: 0x33333333, shift: 2,
+    maskLabelA: "0xCCCCCCCC (high pairs)",
+    maskLabelB: "0x33333333 (low pairs)",
+    maskIntuition: "Groups of 4 bits. Each group: upper 2 are A, lower 2 are B. Repeating unit: 1100 = 0xC. Repeat 8 times → 0xCCCCCCCC.",
+    unitPattern: "11 00 | 11 00 | 11 00 | 11 00 | 11 00 | 11 00 | 11 00 | 11 00",
+  },
+  {
+    title: "Step 5 — Swap adjacent bits",
+    desc: "Finally, swap every even-positioned bit with its odd neighbor.",
+    code: "n = ((n & 0xAAAAAAAA) >> 1) | ((n & 0x55555555) << 1)",
+    blockSize: 1, maskA: 0xAAAAAAAA, maskB: 0x55555555, shift: 1,
+    maskLabelA: "0xAAAAAAAA (even bits)",
+    maskLabelB: "0x55555555 (odd bits)",
+    maskIntuition: "Groups of 2 bits. Each group: upper 1 is A, lower 1 is B. Repeating unit: 10 = 0xA. Repeat 16 times → 0xAAAAAAAA. And 0101 = 0x5 → 0x55555555.",
+    unitPattern: "1 0 | 1 0 | 1 0 | 1 0 | 1 0 | 1 0 | 1 0 | 1 0 | …×16",
+  },
+];
+
+function toBinary32(n) {
+  return (n >>> 0).toString(2).padStart(32, '0');
+}
+function applyStep(n, def) {
+  return (((n & def.maskA) >>> def.shift) | ((n & def.maskB) << def.shift)) >>> 0;
+}
+function makeBitRow(bits, highlights, groupSize) {
+  const container = document.createElement('div');
+  container.className = 'bit-row';
+  for (let i = 0; i < 32; i++) {
+    if (groupSize && i > 0 && i % groupSize === 0) {
+      const sep = document.createElement('div');
+      sep.className = 'group-sep';
+      container.appendChild(sep);
+    }
+    const cell = document.createElement('div');
+    cell.className = 'bit-cell';
+    cell.textContent = bits[i];
+    let hl = false;
+    if (highlights) {
+      for (const h of highlights) {
+        if (h.indices.has(i)) { cell.className += ' ' + h.cls; hl = true; break; }
+      }
+    }
+    if (!hl) cell.className += bits[i] === '1' ? ' bit-one' : ' bit-zero';
+    container.appendChild(cell);
+  }
+  return container;
+}
+function buildIndices(mask) {
+  const s = toBinary32(mask);
+  const set = new Set();
+  for (let i = 0; i < 32; i++) if (s[i] === '1') set.add(i);
+  return set;
+}
+
+function renderStep(stepIdx, nBefore, def) {
+  const card = document.createElement('div');
+  card.className = 'step-card active';
+
+  const h2 = document.createElement('h2');
+  h2.textContent = def.title;
+  card.appendChild(h2);
+
+  const desc = document.createElement('div');
+  desc.className = 'desc';
+  desc.textContent = def.desc;
+  card.appendChild(desc);
+
+  // Mask intuition box
+  const maskExplain = document.createElement('div');
+  maskExplain.className = 'step-mask-explain';
+  maskExplain.innerHTML = `
+    <h4>🎭 Why this mask?</h4>
+    <p>${def.maskIntuition}</p>
+    <div class="pattern-demo">
+      Pattern: <span class="label-a">${def.unitPattern}</span>
+    </div>
+    <p>
+      <span class="label-a">Mask A = ${def.maskLabelA}</span> — selects the <strong>upper ${def.blockSize}</strong> bits of each group.<br>
+      <span class="label-b">Mask B = ${def.maskLabelB}</span> — selects the <strong>lower ${def.blockSize}</strong> bits of each group.<br>
+      Shift amount = <strong>${def.shift}</strong> (the width of one half, so they cross over perfectly).
+    </p>
+  `;
+  card.appendChild(maskExplain);
+
+  const codeEl = document.createElement('div');
+  codeEl.className = 'code-line';
+  codeEl.textContent = def.code;
+  card.appendChild(codeEl);
+
+  const bitsBefore = toBinary32(nBefore);
+  const idxA = buildIndices(def.maskA);
+  const idxB = buildIndices(def.maskB);
+
+  const lblBefore = document.createElement('div');
+  lblBefore.className = 'row-label';
+  lblBefore.textContent = 'BEFORE';
+  card.appendChild(lblBefore);
+  card.appendChild(makeBitRow(bitsBefore, null, def.blockSize * 2));
+
+  const lblMasked = document.createElement('div');
+  lblMasked.className = 'row-label';
+  lblMasked.style.marginTop = '8px';
+  lblMasked.textContent = 'MASK HIGHLIGHT (A = purple, B = green)';
+  card.appendChild(lblMasked);
+  card.appendChild(makeBitRow(bitsBefore, [
+    { indices: idxA, cls: 'bit-highlight-a' },
+    { indices: idxB, cls: 'bit-highlight-b' },
+  ], def.blockSize * 2));
+
+  // Show extracted A and B rows
+  const lblExtract = document.createElement('div');
+  lblExtract.className = 'row-label';
+  lblExtract.style.marginTop = '8px';
+  lblExtract.textContent = 'EXTRACTED HALVES';
+  card.appendChild(lblExtract);
+
+  const aBits = toBinary32(nBefore & def.maskA);
+  const bBits = toBinary32(nBefore & def.maskB);
+
+  const extractContainer = document.createElement('div');
+  extractContainer.style.display = 'flex';
+  extractContainer.style.gap = '24px';
+  extractContainer.style.justifyContent = 'center';
+  extractContainer.style.flexWrap = 'wrap';
+  extractContainer.style.alignItems = 'flex-start';
+
+  const aDiv = document.createElement('div');
+  const aLabel = document.createElement('div');
+  aLabel.className = 'row-label';
+  aLabel.innerHTML = '<span style="color:#c084fc">A = n & Mask A</span>';
+  aDiv.appendChild(aLabel);
+  aDiv.appendChild(makeBitRow(aBits, [{ indices: idxA, cls: 'bit-highlight-a' }], def.blockSize * 2));
+  extractContainer.appendChild(aDiv);
+
+  const bDiv = document.createElement('div');
+  const bLabel = document.createElement('div');
+  bLabel.innerHTML = '<span style="color:#34d399">B = n & Mask B</span>';
+  bDiv.appendChild(bLabel);
+  bDiv.appendChild(makeBitRow(bBits, [{ indices: idxB, cls: 'bit-highlight-b' }], def.blockSize * 2));
+  extractContainer.appendChild(bDiv);
+
+  card.appendChild(extractContainer);
+
+  // Show after shifts
+  const lblShift = document.createElement('div');
+  lblShift.className = 'row-label';
+  lblShift.style.marginTop = '8px';
+  lblShift.textContent = 'AFTER SHIFTS';
+  card.appendChild(lblShift);
+
+  const shiftedContainer = document.createElement('div');
+  shiftedContainer.style.display = 'flex';
+  shiftedContainer.style.gap = '24px';
+  shiftedContainer.style.justifyContent = 'center';
+  shiftedContainer.style.flexWrap = 'wrap';
+  shiftedContainer.style.alignItems = 'flex-start';
+
+  const aShiftedDiv = document.createElement('div');
+  const aShiftLabel = document.createElement('div');
+  aShiftLabel.className = 'row-label';
+  aShiftLabel.innerHTML = `<span style="color:#c084fc">A >> ${def.shift}</span>`;
+  aShiftedDiv.appendChild(aShiftLabel);
+  aShiftedDiv.appendChild(makeBitRow(toBinary32((nBefore & def.maskA) >>> def.shift), null, def.blockSize * 2));
+  shiftedContainer.appendChild(aShiftedDiv);
+
+  const bShiftedDiv = document.createElement('div');
+  const bShiftLabel = document.createElement('div');
+  bShiftLabel.innerHTML = `<span style="color:#34d399">B << ${def.shift}</span>`;
+  bShiftedDiv.appendChild(bShiftLabel);
+  bShiftedDiv.appendChild(makeBitRow(toBinary32(((nBefore & def.maskB) << def.shift) >>> 0), null, def.blockSize * 2));
+  shiftedContainer.appendChild(bShiftedDiv);
+
+  card.appendChild(shiftedContainer);
+
+  // Arrow
+  const arrow = document.createElement('div');
+  arrow.className = 'arrow-row';
+  arrow.textContent = `OR ( | ) combine the two shifted halves`;
+  card.appendChild(arrow);
+
+  // After row
+  const nAfter = applyStep(nBefore, def);
+  const bitsAfter = toBinary32(nAfter);
+  const lblAfter = document.createElement('div');
+  lblAfter.className = 'row-label';
+  lblAfter.textContent = 'RESULT (A | B)';
+  card.appendChild(lblAfter);
+  card.appendChild(makeBitRow(bitsAfter, null, def.blockSize * 2));
+
+  const decResult = document.createElement('div');
+  decResult.className = 'decimal-result';
+  decResult.innerHTML = `Decimal: <strong>${nAfter}</strong>`;
+  card.appendChild(decResult);
+
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  legend.innerHTML = `
+    <span><span class="legend-box" style="background:#7c3aed"></span> Mask A bits</span>
+    <span><span class="legend-box" style="background:#059669"></span> Mask B bits</span>
+    <span><span class="legend-box" style="background:#1e3a5f;border:1px solid #38bdf8"></span> 1-bit</span>
+    <span><span class="legend-box" style="background:#1e293b;border:1px solid #334155"></span> 0-bit</span>
+  `;
+  card.appendChild(legend);
+
+  return { card, nAfter };
+}
+
+function visualize() {
+  const container = document.getElementById('stepsContainer');
+  container.innerHTML = '';
+  let n = (parseInt(document.getElementById('numInput').value) || 0) >>> 0;
+
+  const origCard = document.createElement('div');
+  origCard.className = 'step-card active';
+  origCard.innerHTML = `<h2>Original Input</h2><div class="desc">The 32-bit binary representation of n = ${n}</div>`;
+  origCard.appendChild(makeBitRow(toBinary32(n), null, 16));
+  const decR = document.createElement('div');
+  decR.className = 'decimal-result';
+  decR.innerHTML = `Binary: <code style="color:#7dd3fc;word-break:break-all">${toBinary32(n)}</code>`;
+  origCard.appendChild(decR);
+  container.appendChild(origCard);
+
+  for (let i = 0; i < STEP_DEFS.length; i++) {
+    const result = renderStep(i, n, STEP_DEFS[i]);
+    container.appendChild(result.card);
+    n = result.nAfter;
+  }
+
+  const finalCard = document.createElement('div');
+  finalCard.className = 'step-card active';
+  finalCard.style.borderLeftColor = '#22c55e';
+  const inputVal = (parseInt(document.getElementById('numInput').value) || 0) >>> 0;
+  const expected = parseInt(toBinary32(inputVal).split('').reverse().join(''), 2);
+  finalCard.innerHTML = `<h2>✅ Result</h2>
+    <div class="desc">All 32 bits are now reversed!</div>
+    <div class="decimal-result">Input: <strong>${inputVal}</strong> → Output: <strong>${n}</strong></div>
+    <div class="decimal-result">Expected: <strong>${expected}</strong> — ${n === expected ? '✅ Match!' : '❌ Mismatch'}</div>`;
+  container.appendChild(finalCard);
+}
+
+async function animate() {
+  visualize();
+  const cards = document.querySelectorAll('.step-card');
+  cards.forEach(c => { c.style.opacity = '0.15'; c.classList.remove('active'); });
+  for (const card of cards) {
+    card.style.transition = 'opacity 0.5s';
+    card.style.opacity = '1';
+    card.classList.add('active');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await new Promise(r => setTimeout(r, 1400));
+  }
+}
+
+visualize();
+</script>
+</body>
+</html>

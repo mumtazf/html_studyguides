@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Counting Bits — Range Doubling Algorithm</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d2e;
+    --border: #2a2d3e;
+    --accent: #6c63ff;
+    --accent2: #00d2ff;
+    --text: #e0e0e0;
+    --muted: #8888aa;
+    --green: #4ade80;
+    --orange: #f59e0b;
+    --pink: #f472b6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.8rem;
+    margin-bottom: 0.25rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  h2 { font-size: 1.2rem; color: var(--accent2); margin: 1.5rem 0 0.75rem; }
+  .subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  /* Code block */
+  .code-block {
+    background: #12131f;
+    border-radius: 8px;
+    padding: 1.25rem;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    line-height: 1.8;
+  }
+  .code-block .comment { color: #555577; }
+  .code-block .keyword { color: #c678dd; }
+  .code-block .func    { color: #61afef; }
+  .code-block .num     { color: #d19a66; }
+  .code-block .op      { color: #56b6c2; }
+  .code-block .var     { color: #e5c07b; }
+  .code-block .hl      {
+    background: rgba(108,99,255,0.15);
+    display: block;
+    margin: 0 -1.25rem;
+    padding: 0 1.25rem;
+    border-left: 3px solid var(--accent);
+  }
+
+  /* Intuition section */
+  .insight {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin: 0.75rem 0;
+  }
+  .insight-icon {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* Binary table */
+  .binary-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+    font-family: monospace;
+    font-size: 0.9rem;
+  }
+  .binary-table th, .binary-table td {
+    padding: 0.4rem 0.75rem;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .binary-table th {
+    background: #12131f;
+    color: var(--accent2);
+    font-weight: 600;
+  }
+  .binary-table .new-bit {
+    color: var(--pink);
+    font-weight: 700;
+  }
+
+  /* Range diagram */
+  .range-row {
+    display: flex;
+    align-items: center;
+    margin: 0.4rem 0;
+    gap: 0.5rem;
+  }
+  .range-label {
+    width: 50px;
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .range-bar {
+    display: flex;
+    gap: 2px;
+  }
+  .range-cell {
+    width: 36px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .cell-known  { background: #1e3a5f; color: var(--accent2); }
+  .cell-new    { background: #3b1f5e; color: var(--pink); }
+  .cell-empty  { background: #1a1d2e; color: var(--muted); border: 1px dashed var(--border); }
+  .cell-arrow  { background: transparent; color: var(--green); font-size: 1rem; width: 20px; }
+
+  /* Simulator */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .controls label { font-size: 0.9rem; color: var(--muted); }
+  .controls input[type="number"] {
+    width: 70px;
+    padding: 0.4rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #12131f;
+    color: var(--text);
+    font-size: 0.9rem;
+    text-align: center;
+  }
+  button {
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  button:active { transform: scale(0.97); }
+  .btn-primary   { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--border); color: var(--text); }
+
+  /* State display */
+  .state-info {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .state-item { color: var(--muted); }
+  .state-item span { color: var(--green); font-weight: 700; font-family: monospace; }
+
+  .array-display {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+  .arr-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .arr-idx {
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+  .arr-val {
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: 2px solid var(--border);
+    background: var(--card);
+    transition: all 0.3s;
+  }
+  .arr-val.filled     { border-color: var(--accent2); background: #1e3a5f; }
+  .arr-val.current    { border-color: var(--pink); background: #3b1f5e; transform: scale(1.1); }
+  .arr-val.just-set   { border-color: var(--green); background: #1a3d2e; animation: pop 0.4s ease; }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+
+  .log-box {
+    background: #12131f;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    max-height: 140px;
+    overflow-y: auto;
+    line-height: 1.6;
+  }
+  .log-box .log-action { color: var(--green); }
+  .log-box .log-info   { color: var(--accent2); }
+
+  .speed-control { display: flex; align-items: center; gap: 0.5rem; }
+  .speed-control input[type="range"] {
+    accent-color: var(--accent);
+    width: 100px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Counting Bits — Range Doubling</h1>
+<p class="subtitle">LeetCode 338 · O(n) DP with power-of-2 ranges</p>
+
+<!-- INTUITION -->
+<div class="card">
+  <h2>Core Intuition</h2>
+  <div class="insight">
+    <div class="insight-icon">1</div>
+    <div>When <code>b</code> is a power of 2, numbers in <strong>[b, 2b)</strong> are identical to numbers in <strong>[0, b)</strong> — just with the <code>b</code>-bit switched on.</div>
+  </div>
+  <div class="insight">
+    <div class="insight-icon">2</div>
+    <div>So the bit count for <code>x + b</code> is simply the bit count for <code>x</code> plus <strong>1</strong>.</div>
+  </div>
+  <div class="insight">
+    <div class="insight-icon">3</div>
+    <div>Each round <strong>doubles</strong> the known range: [0,1) → [0,2) → [0,4) → [0,8) …</div>
+  </div>
+
+  <h2>Why [b, 2b)?</h2>
+  <table class="binary-table">
+    <thead>
+      <tr><th>[0, 4)</th><th>Binary</th><th></th><th>[4, 8)</th><th>Binary</th><th>Relation</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>0</td><td>000</td><td>→</td><td>4</td><td><span class="new-bit">1</span>00</td><td>ans[4] = ans[0] + 1</td></tr>
+      <tr><td>1</td><td>001</td><td>→</td><td>5</td><td><span class="new-bit">1</span>01</td><td>ans[5] = ans[1] + 1</td></tr>
+      <tr><td>2</td><td>010</td><td>→</td><td>6</td><td><span class="new-bit">1</span>10</td><td>ans[6] = ans[2] + 1</td></tr>
+      <tr><td>3</td><td>011</td><td>→</td><td>7</td><td><span class="new-bit">1</span>11</td><td>ans[7] = ans[3] + 1</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:0.85rem; color:var(--muted);">The <span style="color:var(--pink); font-weight:700;">pink bit</span> is the only difference — everything else is copied from [0, b).</p>
+
+  <h2>Range Growth</h2>
+  <div class="range-row">
+    <div class="range-label">b = 1</div>
+    <div class="range-bar">
+      <div class="range-cell cell-known">0</div>
+      <div class="range-cell cell-new">1</div>
+      <div class="range-cell cell-empty">?</div>
+      <div class="range-cell cell-empty">?</div>
+      <div class="range-cell cell-empty">?</div>
+      <div class="range-cell cell-empty">?</div>
+      <div class="range-cell cell-empty">?</div>
+      <div class="range-cell cell-empty">?</div>
+    </div>
+  </div>
+  <div class="range-row">
+    <div class="range-label">b = 2</div>
+    <div class="range-bar">
+      <div class="range-cell cell-known">0</div>
+      <div class="range-cell cell-known">1</div>
+      <div class="range-cell cell-new">2</div>
+      <div class="range-cell cell-new">3</div>
+      <div class="range-cell cell-empty">?</div>
+      <div class="range-cell cell-empty">?</div>
+      <div class="range-cell cell-empty">?</div>
+      <div class="range-cell cell-empty">?</div>
+    </div>
+  </div>
+  <div class="range-row">
+    <div class="range-label">b = 4</div>
+    <div class="range-bar">
+      <div class="range-cell cell-known">0</div>
+      <div class="range-cell cell-known">1</div>
+      <div class="range-cell cell-known">1</div>
+      <div class="range-cell cell-known">2</div>
+      <div class="range-cell cell-new">4</div>
+      <div class="range-cell cell-new">5</div>
+      <div class="range-cell cell-new">6</div>
+      <div class="range-cell cell-new">7</div>
+    </div>
+  </div>
+  <div style="font-size:0.75rem; margin-top:0.5rem;">
+    <span style="color:var(--accent2);">■</span> known &nbsp;
+    <span style="color:var(--pink);">■</span> newly generated
+  </div>
+</div>
+
+<!-- CODE -->
+<div class="card">
+  <h2>Annotated Code</h2>
+  <div class="code-block">
+<span class="keyword">class</span> <span class="func">Solution</span>:
+    <span class="keyword">def</span> <span class="func">countBits</span>(self, n: <span class="keyword">int</span>) -&gt; List[<span class="keyword">int</span>]:
+<span class="hl">        ans = [<span class="num">0</span>] * (n + <span class="num">1</span>)      <span class="comment"># result array, ans[0] = 0</span></span>
+<span class="hl">        x = <span class="num">0</span>                  <span class="comment"># index into [0, b)</span></span>
+<span class="hl">        b = <span class="num">1</span>                  <span class="comment"># current power-of-2 range start</span></span>
+
+        <span class="comment"># [0, b) is already calculated</span>
+        <span class="keyword">while</span> b &lt;= n:                        <span class="comment"># while range fits</span>
+            <span class="comment"># generate [b, 2b) or [b, n) from [0, b)</span>
+<span class="hl">            <span class="keyword">while</span> x &lt; b <span class="keyword">and</span> x + b &lt;= n:  <span class="comment"># x in [0,b) and within bounds</span></span>
+<span class="hl">                ans[x + b] = ans[x] + <span class="num">1</span>   <span class="comment"># copy + add the b-bit</span></span>
+<span class="hl">                x += <span class="num">1</span></span>
+<span class="hl">            x = <span class="num">0</span>                          <span class="comment"># reset for next round</span></span>
+<span class="hl">            b &lt;&lt;= <span class="num">1</span>                         <span class="comment"># b = 2b (next power of 2)</span></span>
+
+        <span class="keyword">return</span> ans
+  </div>
+</div>
+
+<!-- SIMULATOR -->
+<div class="card">
+  <h2>Step-by-Step Simulator</h2>
+  <div class="controls">
+    <label>n =</label>
+    <input type="number" id="inputN" value="7" min="0" max="31">
+    <button class="btn-primary" onclick="startSim()">Run</button>
+    <button class="btn-secondary" onclick="stepSim()">Step</button>
+    <button class="btn-secondary" onclick="resetSim()">Reset</button>
+    <div class="speed-control">
+      <label>Speed</label>
+      <input type="range" id="speedSlider" min="100" max="1500" value="600">
+    </div>
+  </div>
+
+  <div class="state-info" id="stateInfo">
+    <div class="state-item">b = <span id="stB">1</span></div>
+    <div class="state-item">x = <span id="stX">0</span></div>
+    <div class="state-item">Round = <span id="stRound">0</span></div>
+  </div>
+
+  <div class="array-display" id="arrayDisplay"></div>
+
+  <div class="log-box" id="logBox"></div>
+</div>
+
+<!-- COMPLEXITY -->
+<div class="card">
+  <h2>Complexity</h2>
+  <div class="insight">
+    <div class="insight-icon" style="background:var(--green);">T</div>
+    <div><strong>Time: O(n)</strong> — Each index is written exactly once. The outer loop runs log(n) times, and the total inner-loop iterations across all rounds sum to n.</div>
+  </div>
+  <div class="insight">
+    <div class="insight-icon" style="background:var(--green);">S</div>
+    <div><strong>Space: O(n)</strong> — The output array of size n + 1.</div>
+  </div>
+</div>
+
+<script>
+let ans = [], n = 0, b = 1, x = 0, round = 0;
+let running = false, stepping = false, timerId = null;
+
+function getSpeed() { return 1600 - parseInt(document.getElementById('speedSlider').value); }
+
+function log(msg) {
+  const box = document.getElementById('logBox');
+  box.innerHTML += msg + '<br>';
+  box.scrollTop = box.scrollHeight;
+}
+
+function updateState() {
+  document.getElementById('stB').textContent = b;
+  document.getElementById('stX').textContent = x;
+  document.getElementById('stRound').textContent = round;
+}
+
+function renderArray(justSetIdx, currentIdx) {
+  const container = document.getElementById('arrayDisplay');
+  container.innerHTML = '';
+  for (let i = 0; i <= n; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'arr-cell';
+
+    const idx = document.createElement('div');
+    idx.className = 'arr-idx';
+    idx.textContent = i;
+
+    const val = document.createElement('div');
+    val.className = 'arr-val';
+    if (i === justSetIdx) val.classList.add('just-set');
+    else if (i === currentIdx) val.classList.add('current');
+    else if (ans[i] !== -1) val.classList.add('filled');
+
+    val.textContent = ans[i] === -1 ? '?' : ans[i];
+    cell.appendChild(idx);
+    cell.appendChild(val);
+    container.appendChild(cell);
+  }
+}
+
+function initState() {
+  n = parseInt(document.getElementById('inputN').value) || 0;
+  if (n < 0) n = 0;
+  if (n > 31) n = 31;
+  document.getElementById('inputN').value = n;
+
+  ans = new Array(n + 1).fill(-1);
+  ans[0] = 0;
+  b = 1; x = 0; round = 0;
+  running = false; stepping = false;
+  if (timerId) { clearTimeout(timerId); timerId = null; }
+
+  document.getElementById('logBox').innerHTML = '';
+  log('<span class="log-info">Initialized: ans[0] = 0, b = 1, x = 0</span>');
+  updateState();
+  renderArray(-1, -1);
+}
+
+function doStep() {
+  // Check outer loop
+  if (b > n) {
+    log('<span class="log-info">✓ Done! b = ' + b + ' > n = ' + n + '</span>');
+    running = false;
+    stepping = false;
+    renderArray(-1, -1);
+    return false;
+  }
+
+  // Check inner loop
+  if (x < b && x + b <= n) {
+    ans[x + b] = ans[x] + 1;
+    const setIdx = x + b;
+    const srcX = x;
+    log('<span class="log-action">ans[' + setIdx + '] = ans[' + srcX + '] + 1 = ' + ans[setIdx] + '</span>  (copy from [0,b), add b-bit)');
+    x++;
+    updateState();
+    renderArray(setIdx, -1);
+    return true;
+  }
+
+  // End of inner loop — advance round
+  log('<span class="log-info">Round ' + round + ' complete (b=' + b + '). Range [0, ' + Math.min(2*b, n+1) + ') known.</span>');
+  x = 0;
+  b <<= 1;
+  round++;
+  updateState();
+  renderArray(-1, -1);
+  return true;
+}
+
+async function runAuto() {
+  if (!running) return;
+  const cont = doStep();
+  if (cont && running) {
+    timerId = setTimeout(runAuto, getSpeed());
+  }
+}
+
+function startSim() {
+  if (running) { running = false; return; }
+  if (b > n) initState();
+  running = true; stepping = false;
+  runAuto();
+}
+
+function stepSim() {
+  if (running) { running = false; return; }
+  if (b > n) initState();
+  stepping = true;
+  doStep();
+}
+
+function resetSim() {
+  initState();
+}
+
+// Init on load
+initState();
+</script>
+
+</body>
+</html>
