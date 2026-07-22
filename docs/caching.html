@@ -1,0 +1,1035 @@
+---
+title: "Caching, from LRU to LLMs"
+description: "Classic cache patterns, real-world engineering blogs to read, and where caching meets modern ML."
+date: 2026-07-15
+guide: true
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Caching — from LRU to LLMs</title>
+<style>
+  :root {
+    --bg: #f6f1e7;
+    --bg-alt: #efe8d8;
+    --bg-code: #1e1b18;
+    --ink: #1c1a17;
+    --ink-soft: #5a544a;
+    --ink-faint: #8f867a;
+    --accent: #7a4a1d;
+    --on: #c74a2a;
+    --good: #4a8a3a;
+    --rule: #d9cfba;
+    --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1815; --bg-alt: #221f1a; --bg-code: #0f0d0b; --ink: #ece5d4;
+      --ink-soft: #a49b87; --ink-faint: #6f6759; --accent: #d6a066;
+      --on: #e88062; --good: #8fc47a; --rule: #3a352d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1.65;
+    padding: 3rem 1.5rem 6rem;
+    display: flex;
+    justify-content: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { width: 100%; max-width: 46rem; }
+
+  h1 { font-size: 2rem; margin: 0 0 0.3rem; letter-spacing: -0.01em; }
+  .tagline {
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0 0 2rem;
+  }
+  h2 {
+    font-size: 1.35rem;
+    margin: 3rem 0 0.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--rule);
+    letter-spacing: -0.005em;
+  }
+  h3 {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin: 1.8rem 0 0.5rem;
+  }
+  p { margin: 0 0 0.9rem; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin-bottom: 0.35rem; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+  a:hover { border-bottom-color: var(--accent); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--bg-alt);
+    padding: 0.05rem 0.35rem;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--bg-code);
+    color: #eae1cf;
+    padding: 1rem 1.1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    margin: 0.8rem 0 1.4rem;
+  }
+  pre code { background: transparent; padding: 0; font-size: inherit; }
+  pre .k { color: #d6a066; }
+  pre .n { color: #e88062; }
+  pre .c { color: #6f6759; font-style: italic; }
+  pre .s { color: #a4c584; }
+
+  .toc {
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    background: var(--bg-alt);
+    padding: 1rem 1.4rem;
+    border-radius: 6px;
+    margin: 0 0 2.5rem;
+  }
+  .toc a { color: var(--ink-soft); border-bottom: 1px solid transparent; }
+  .toc a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .toc ol { margin: 0.4rem 0 0; padding-left: 1.4rem; }
+
+  .callout {
+    background: var(--bg-alt);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    margin: 1.4rem 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.96rem;
+    color: var(--ink-soft);
+  }
+  .callout strong { color: var(--ink); }
+
+  table {
+    border-collapse: collapse;
+    margin: 0.6rem 0 1.4rem;
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    width: 100%;
+  }
+  th, td {
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--bg-alt);
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  /* Reading-list cards */
+  .reading-list { list-style: none; padding: 0; margin: 0.8rem 0 1.4rem; }
+  .reading-list li {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    margin-bottom: 0.6rem;
+    background: var(--bg-alt);
+  }
+  .reading-list .src {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.2rem;
+  }
+  .reading-list .title { font-weight: 600; margin-bottom: 0.15rem; }
+  .reading-list .why {
+    font-family: var(--font-sans);
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+    margin: 0.15rem 0 0;
+  }
+
+  /* Interactive playgrounds */
+  .playground {
+    background: var(--bg-alt);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin: 1.4rem 0 2.2rem;
+  }
+  .playground label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 0.3rem;
+  }
+  .playground .row { margin-bottom: 1rem; }
+  .playground input[type="text"] {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--ink);
+    width: 100%;
+  }
+  .playground input[type="range"] { width: 100%; max-width: 22rem; }
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--rule);
+    background: var(--bg);
+    color: var(--ink);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 100ms, color 100ms, border-color 100ms;
+  }
+  .btn:hover { background: var(--bg); border-color: var(--accent); color: var(--accent); }
+  .btn.subtle { font-family: var(--font-sans); font-size: 0.82rem; }
+
+  /* LRU visualizer */
+  .lru-cache {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem;
+    margin: 1.6rem 0 1.2rem;
+  }
+  .lru-cache .slot {
+    height: 3.6rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 1.3rem;
+    background: var(--bg);
+    color: var(--ink-faint);
+    position: relative;
+    transition: background 150ms, border-color 150ms, color 150ms;
+  }
+  .lru-cache .slot.filled {
+    color: var(--ink);
+    background: rgba(122, 74, 29, 0.08);
+    border-color: var(--accent);
+  }
+  .lru-cache .slot.flash {
+    background: rgba(74, 138, 58, 0.2);
+    border-color: var(--good);
+  }
+  .lru-cache .slot.mru-mark::before {
+    content: 'MRU';
+    position: absolute; top: -1.05rem; left: 0; right: 0;
+    font-family: var(--font-sans); font-size: 0.62rem;
+    color: var(--accent); letter-spacing: 0.08em; text-align: center;
+  }
+  .lru-cache .slot.lru-mark::after {
+    content: 'LRU (next to evict)';
+    position: absolute; bottom: -1.05rem; left: 0; right: 0;
+    font-family: var(--font-sans); font-size: 0.62rem;
+    color: var(--ink-faint); letter-spacing: 0.06em; text-align: center;
+  }
+  .lru-buttons {
+    display: flex; gap: 0.4rem; flex-wrap: wrap;
+    margin: 1.6rem 0 0.4rem;
+  }
+  .lru-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    margin: 0.8rem 0;
+  }
+  .lru-stats .stat {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.5rem 0.7rem;
+  }
+  .lru-stats .stat .lbl {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: block;
+    margin-bottom: 0.15rem;
+  }
+  .lru-stats .stat .num {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    color: var(--ink);
+  }
+  .lru-log {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.6rem 0.8rem;
+    min-height: 3rem;
+    max-height: 11rem;
+    overflow-y: auto;
+    margin-top: 0.6rem;
+    line-height: 1.5;
+  }
+  .log-line.hit { color: var(--good); }
+  .log-line.miss { color: var(--on); }
+  .log-line .evict { color: var(--ink-faint); }
+
+  /* Semantic cache playground */
+  .sem-list { margin: 0.5rem 0 1rem; }
+  .sem-row {
+    display: grid;
+    grid-template-columns: 4rem 1fr;
+    gap: 0.9rem;
+    padding: 0.45rem 0.7rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    align-items: center;
+    border: 1px solid transparent;
+    margin-bottom: 0.2rem;
+    transition: background 150ms, border-color 150ms;
+  }
+  .sem-row.hit {
+    background: rgba(74, 138, 58, 0.1);
+    border-color: var(--good);
+  }
+  .sem-sim {
+    font-family: var(--font-mono);
+    color: var(--ink-faint);
+    text-align: right;
+  }
+  .sem-row.hit .sem-sim { color: var(--good); font-weight: 600; }
+  .sem-q { color: var(--ink-soft); }
+  .sem-row.hit .sem-q { color: var(--ink); }
+  .sem-verdict {
+    margin-top: 1rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-size: 0.94rem;
+    border: 1px solid var(--rule);
+    background: var(--bg);
+    color: var(--ink-soft);
+  }
+  .sem-verdict.hit {
+    border-color: var(--good);
+    background: rgba(74, 138, 58, 0.08);
+    color: var(--ink);
+  }
+  .sem-verdict.miss {
+    border-color: var(--on);
+    background: rgba(199, 74, 42, 0.06);
+    color: var(--ink);
+  }
+  .sem-verdict strong { color: var(--ink); }
+  .thresh-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.8rem;
+    align-items: center;
+  }
+  .thresh-val {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    color: var(--accent);
+    min-width: 2.6rem;
+    text-align: right;
+  }
+
+  footer {
+    margin-top: 5rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Caching, from LRU to LLMs</h1>
+  <p class="tagline">the classic patterns, the reading list, and where it meets ML</p>
+
+  <p>
+    Caching is one of those topics where the fundamentals were mostly settled
+    in the 1970s and yet every generation of infrastructure invents a new twist
+    on them. This guide walks the classic patterns first, points at the
+    engineering-blog posts worth reading, then follows the thread into
+    modern ML systems &mdash; feature stores, embedding caches, and the
+    semantic and KV caches that make LLM serving affordable.
+  </p>
+
+  <div class="toc">
+    <strong>Contents</strong>
+    <ol>
+      <li><a href="#why">Why we cache</a></li>
+      <li><a href="#where">Where caches live</a></li>
+      <li><a href="#read">Read patterns</a></li>
+      <li><a href="#write">Write patterns</a></li>
+      <li><a href="#eviction">Eviction policies &mdash; and an LRU playground</a></li>
+      <li><a href="#stampede">Cache stampede</a></li>
+      <li><a href="#invalidation">Invalidation, TTLs, and consistency</a></li>
+      <li><a href="#hashing">Consistent hashing (briefly)</a></li>
+      <li><a href="#reading">Engineering blog reading list</a></li>
+      <li><a href="#ml">Caching for ML systems</a></li>
+      <li><a href="#semantic">Semantic cache playground</a></li>
+      <li><a href="#kv">LLM KV cache and prompt caching</a></li>
+      <li><a href="#checklist">A short study checklist</a></li>
+    </ol>
+  </div>
+
+  <h2 id="why">1. Why we cache</h2>
+
+  <p>Three reasons, in order of how often they matter:</p>
+
+  <ol>
+    <li><strong>Latency.</strong> Memory is roughly 100&times; faster than SSD, which is 100&times; faster than a network round-trip, which is 100&times; faster than a slow origin request. A cache turns "slow" work into "fast" work by keeping recent results near where they're needed.</li>
+    <li><strong>Load.</strong> A cache absorbs traffic that would otherwise hammer the origin. If 90% of reads hit the cache, the database sees 10% of the load.</li>
+    <li><strong>Cost.</strong> Especially with LLMs: every cache hit is a call you don't pay a per-token bill for.</li>
+  </ol>
+
+  <div class="callout">
+    <strong>The mental model:</strong> a cache is a bet that <em>recent work
+    will happen again soon</em>. When that bet pays off it's called <em>temporal
+    locality</em>. Every caching decision &mdash; what to keep, what to evict,
+    how long to trust it &mdash; is a variation on tuning that bet.
+  </div>
+
+  <h2 id="where">2. Where caches live</h2>
+
+  <table>
+    <thead>
+      <tr><th>Tier</th><th>Examples</th><th>Scope</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Client</td>
+        <td>Browser cache, mobile app storage, HTTP <code>Cache-Control</code></td>
+        <td>One user</td>
+      </tr>
+      <tr>
+        <td>Edge / CDN</td>
+        <td>Cloudflare, Fastly, CloudFront, Akamai</td>
+        <td>Geographic region</td>
+      </tr>
+      <tr>
+        <td>In-process (L1)</td>
+        <td>Caffeine (Java), <code>lru_cache</code> (Python), Guava</td>
+        <td>One server, no network hop</td>
+      </tr>
+      <tr>
+        <td>Remote / shared (L2)</td>
+        <td>Memcached, Redis, Elasticache</td>
+        <td>Whole fleet, one round-trip</td>
+      </tr>
+      <tr>
+        <td>Database buffer pool</td>
+        <td>InnoDB, Postgres shared buffers</td>
+        <td>Inside the DB itself</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    Big services use several of these at once. A request might hit a CDN, then
+    an in-process cache on the app server, then a Redis cluster, and only fall
+    through to Postgres on a miss at every level.
+  </p>
+
+  <h2 id="read">3. Read patterns</h2>
+
+  <h3>Cache-aside (aka lazy loading)</h3>
+  <p>The application does the work. Check cache; on miss, fetch from DB and populate the cache.</p>
+  <pre><code><span class="k">def</span> get_user(user_id):
+    user = cache.get(user_id)
+    <span class="k">if</span> user <span class="k">is not</span> <span class="n">None</span>:
+        <span class="k">return</span> user           <span class="c"># HIT</span>
+    user = db.query(<span class="s">"select ..."</span>, user_id)   <span class="c"># MISS</span>
+    cache.set(user_id, user, ttl=<span class="n">300</span>)
+    <span class="k">return</span> user</code></pre>
+  <p>
+    Dominant in practice because it's simple and only caches things that are
+    actually asked for. The tradeoff: every miss is a round-trip to the cache
+    <em>and</em> a round-trip to the DB.
+  </p>
+
+  <h3>Read-through</h3>
+  <p>
+    Same behavior, but the cache library is in charge of the fallback. The
+    application only ever calls <code>cache.get()</code>. Nicer abstraction,
+    less flexible when the "fetch from origin" logic is complicated.
+  </p>
+
+  <h2 id="write">4. Write patterns</h2>
+
+  <table>
+    <thead>
+      <tr><th>Pattern</th><th>How it works</th><th>Tradeoff</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Write-through</td>
+        <td>Every write goes to cache <em>and</em> DB, synchronously.</td>
+        <td>Consistent, but every write pays two hops.</td>
+      </tr>
+      <tr>
+        <td>Write-back (write-behind)</td>
+        <td>Write to cache only; a background flush persists to DB later.</td>
+        <td>Fast writes, but a cache crash before flush loses data.</td>
+      </tr>
+      <tr>
+        <td>Write-around</td>
+        <td>Write straight to DB; do not populate the cache on write.</td>
+        <td>Good when written data is rarely read soon after.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    Real systems mix these. A common combo is <em>cache-aside for reads</em>
+    plus <em>write-through for updates</em>, so the cache never returns a value
+    it just watched the DB accept.
+  </p>
+
+  <h2 id="eviction">5. Eviction policies &mdash; and an LRU playground</h2>
+
+  <p>
+    A cache has finite capacity, so on every write beyond capacity it must
+    <em>evict</em> something. The eviction policy is the rule for choosing what
+    to throw out.
+  </p>
+
+  <ul>
+    <li><strong>LRU</strong> (Least Recently Used) &mdash; evict the item touched furthest in the past. The default choice; matches temporal locality.</li>
+    <li><strong>LFU</strong> (Least Frequently Used) &mdash; evict the item with the fewest hits. Better when access frequency is more stable than recency.</li>
+    <li><strong>FIFO</strong> &mdash; evict oldest inserted. Cheap; usually worse than LRU.</li>
+    <li><strong>TTL-based</strong> &mdash; every entry has an expiry; expired entries are lazily or actively removed.</li>
+    <li><strong>ARC / W-TinyLFU</strong> &mdash; adaptive hybrids that mix recency and frequency. Caffeine and modern in-process caches use W-TinyLFU.</li>
+  </ul>
+
+  <p>
+    Click the buttons below to access keys through a capacity-4 LRU cache.
+    Watch the ordering shift on every access, and see items get evicted when
+    something new arrives to a full cache.
+  </p>
+
+  <div class="playground">
+    <div class="row">
+      <label>Cache (most recent on the left)</label>
+      <div class="lru-cache" id="lru-cache"></div>
+    </div>
+
+    <div class="row">
+      <label>Access a key</label>
+      <div class="lru-buttons" id="lru-buttons"></div>
+    </div>
+
+    <div class="lru-stats">
+      <div class="stat"><span class="lbl">Hits</span><span class="num" id="lru-hits">0</span></div>
+      <div class="stat"><span class="lbl">Misses</span><span class="num" id="lru-misses">0</span></div>
+      <div class="stat"><span class="lbl">Hit ratio</span><span class="num" id="lru-ratio">&mdash;</span></div>
+    </div>
+
+    <div class="row">
+      <label>Access log (newest first)</label>
+      <div class="lru-log" id="lru-log"></div>
+    </div>
+
+    <button class="btn subtle" id="lru-reset">Reset</button>
+  </div>
+
+  <div class="callout">
+    <strong>Try this:</strong> access <code>A B C D</code> to fill the cache,
+    then <code>A</code> again to promote it, then <code>E</code>. Which key gets
+    evicted? Now compare to accessing <code>A B C D E</code> without the
+    <code>A</code> in the middle.
+  </div>
+
+  <h2 id="stampede">6. Cache stampede</h2>
+
+  <p>
+    Imagine a popular key expires at exactly 12:00:00. In the next millisecond
+    a thousand requests all miss the cache, all query the database, and all
+    write the same value back. Your DB just took a 1000&times; spike from a
+    <em>single</em> expired key. This is a cache stampede (also called the
+    thundering herd or dog-pile problem).
+  </p>
+
+  <p>Standard defenses:</p>
+
+  <ul>
+    <li>
+      <strong>Request coalescing / <code>singleflight</code>.</strong> Only one
+      request per key is allowed to fetch from the origin; the others wait for
+      its result. Go's <code>golang.org/x/sync/singleflight</code> is the
+      reference implementation of this idea.
+    </li>
+    <li>
+      <strong>Probabilistic early expiration.</strong> Refresh a key
+      <em>before</em> it expires, with a probability that grows as the TTL
+      nears zero. See the XFetch algorithm.
+    </li>
+    <li>
+      <strong>Jittered TTLs.</strong> Add random noise so a batch of keys
+      populated together doesn't expire together.
+    </li>
+    <li>
+      <strong>Stale-while-revalidate.</strong> Serve the expired value while a
+      single background task refreshes it. Standard in CDNs and HTTP.
+    </li>
+  </ul>
+
+  <h2 id="invalidation">7. Invalidation, TTLs, and consistency</h2>
+
+  <p>
+    The old joke &mdash; <em>"there are only two hard things in computer
+    science: cache invalidation and naming things"</em> &mdash; is a joke because
+    it's true. If you never invalidate you serve stale data. If you invalidate
+    on every write you've reinvented the database, slower.
+  </p>
+
+  <p>Common strategies, roughly in order of increasing complexity:</p>
+
+  <ol>
+    <li><strong>TTL only.</strong> Every entry lives for <em>N</em> seconds. Simple, tolerates staleness bounded by N. Usually the right default.</li>
+    <li><strong>Write-through invalidation.</strong> The code that updates the DB also deletes (or overwrites) the corresponding cache key.</li>
+    <li><strong>Event-driven invalidation.</strong> The DB emits change events (Debezium, DynamoDB Streams, Postgres logical replication); a consumer invalidates keys.</li>
+    <li><strong>Versioned keys.</strong> Include a version number in the cache key (<code>user:42:v7</code>). "Invalidate" by bumping the version &mdash; old entries just expire naturally.</li>
+  </ol>
+
+  <div class="callout">
+    <strong>A subtle bug worth remembering:</strong> if you update the DB and
+    <em>then</em> delete the cache key, there's a race where another reader
+    can miss, read the old value from the DB (before your commit is visible on
+    a replica), and repopulate the cache with stale data. The fix is either
+    "delete-then-update-then-delete-again" (the double-delete pattern) or
+    stronger read consistency.
+  </div>
+
+  <h2 id="hashing">8. Consistent hashing (briefly)</h2>
+
+  <p>
+    When your cache is a cluster of nodes, how do you decide which node holds
+    which key? Naive <code>hash(key) % N</code> rebalances almost every key when
+    you add or remove one node &mdash; a disaster during a scaling event.
+  </p>
+
+  <p>
+    <em>Consistent hashing</em> maps both keys and nodes onto a ring (typically
+    2<sup>32</sup> positions). A key belongs to the next node clockwise on the
+    ring. Adding or removing a node only moves the keys in that node's arc &mdash;
+    on average, <code>K/N</code> of them. This is how Memcached clients, Cassandra,
+    DynamoDB, and every serious cache cluster do sharding. Worth reading the
+    original Karger et al. paper once, then never having to think about it
+    again.
+  </p>
+
+  <h2 id="reading">9. Engineering blog reading list</h2>
+
+  <p>
+    The theory is short. The interesting stuff is how big companies actually
+    made it work. Read these roughly in order &mdash; the first few build the
+    intuition, the later ones stretch it.
+  </p>
+
+  <ul class="reading-list">
+    <li>
+      <div class="src">Facebook &middot; NSDI '13 paper</div>
+      <div class="title"><a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank" rel="noopener">Scaling Memcache at Facebook</a></div>
+      <p class="why">Still the canonical read. Covers stampede protection ("leases"), regional pools, and cache consistency across data centers. Referenced by every serious caching post since.</p>
+    </li>
+    <li>
+      <div class="src">CodeAhoy</div>
+      <div class="title"><a href="https://codeahoy.com/2017/08/11/caching-strategies-and-how-to-choose-the-right-one/" target="_blank" rel="noopener">Caching Strategies and How to Choose the Right One</a></div>
+      <p class="why">Clean tour of cache-aside, read-through, write-through, write-back, refresh-ahead. Good after the Facebook paper for putting names on patterns.</p>
+    </li>
+    <li>
+      <div class="src">Netflix</div>
+      <div class="title"><a href="https://netflixtechblog.com/caching-for-a-global-netflix-7bcc457012f1" target="_blank" rel="noopener">EVCache: Caching for a Global Netflix</a></div>
+      <p class="why">Multi-region distributed cache built on Memcached. Great case study in what happens when your users are everywhere and eventual consistency is the only realistic option.</p>
+    </li>
+    <li>
+      <div class="src">Uber</div>
+      <div class="title"><a href="https://www.uber.com/blog/cachefront/" target="_blank" rel="noopener">How Uber Serves Over 40 Million Reads Per Second Using an Integrated Cache</a></div>
+      <p class="why">CacheFront, an in-Docstore cache. Shows what it looks like when the cache is designed as part of the database rather than bolted on.</p>
+    </li>
+    <li>
+      <div class="src">Shopify</div>
+      <div class="title"><a href="https://shopify.engineering/identitycache-story-of-caching-solution" target="_blank" rel="noopener">The Story of IdentityCache</a></div>
+      <p class="why">A read-through cache layered on ActiveRecord/MySQL. Very practical &mdash; you can feel the production scars in the design decisions.</p>
+    </li>
+    <li>
+      <div class="src">Discord</div>
+      <div class="title"><a href="https://discord.com/blog/how-discord-stores-billions-of-messages" target="_blank" rel="noopener">How Discord Stores Billions of Messages</a></div>
+      <p class="why">Not strictly a caching post, but the access-pattern analysis (why they picked Cassandra, how they warm caches, hot-partition mitigation) teaches you how to <em>think</em> about caches.</p>
+    </li>
+    <li>
+      <div class="src">Cloudflare</div>
+      <div class="title"><a href="https://blog.cloudflare.com/how-we-built-pingora-the-proxy-that-connects-cloudflare-to-the-internet/" target="_blank" rel="noopener">How We Built Pingora</a></div>
+      <p class="why">The proxy that fronts Cloudflare's cache. Search their blog for "cache" &mdash; there are dozens of posts on edge caching, tiered caches, and cache-key normalization.</p>
+    </li>
+    <li>
+      <div class="src">Instagram Engineering</div>
+      <div class="title"><a href="https://instagram-engineering.com/" target="_blank" rel="noopener">Instagram Engineering &mdash; Django cache posts</a></div>
+      <p class="why">Older but foundational. The "how we sharded Postgres and used memcached" era of scaling writeups.</p>
+    </li>
+  </ul>
+
+  <h2 id="ml">10. Caching for ML systems</h2>
+
+  <p>
+    Machine learning turned out to be a giant caching problem in disguise.
+    Every layer of a modern ML system has a cache tuned to a specific access
+    pattern:
+  </p>
+
+  <h3>Feature stores &mdash; the online cache for ML</h3>
+  <p>
+    A model at inference time needs the same features that were used at
+    training time. Recomputing them per-request is too slow. So features are
+    computed in batch, written into an online store optimized for point
+    lookups by entity id, and cached aggressively. That's a feature store.
+  </p>
+
+  <ul class="reading-list">
+    <li>
+      <div class="src">Uber</div>
+      <div class="title"><a href="https://www.uber.com/blog/michelangelo-machine-learning-platform/" target="_blank" rel="noopener">Meet Michelangelo: Uber's Machine Learning Platform</a></div>
+      <p class="why">The post that popularized the term "feature store". Read it for the split between offline (Hive) and online (Cassandra) feature retrieval.</p>
+    </li>
+    <li>
+      <div class="src">DoorDash</div>
+      <div class="title"><a href="https://careersatdoordash.com/blog/building-a-gigascale-ml-feature-store-with-redis/" target="_blank" rel="noopener">Building a Gigascale ML Feature Store with Redis</a></div>
+      <p class="why">Very concrete: Redis Cluster, cache warming, hot-key handling. Reads like the ByteByteGo article but the "value" is an ML feature vector.</p>
+    </li>
+    <li>
+      <div class="src">LinkedIn</div>
+      <div class="title"><a href="https://engineering.linkedin.com/blog/2022/open-sourcing-venice--linkedin-s-derived-data-platform" target="_blank" rel="noopener">Open-sourcing Venice: LinkedIn's Derived Data Platform</a></div>
+      <p class="why">Venice is the online serving side of their ML pipelines &mdash; a bulk-write, point-read store built specifically for derived (model-output) data.</p>
+    </li>
+    <li>
+      <div class="src">Open source</div>
+      <div class="title"><a href="https://feast.dev/" target="_blank" rel="noopener">Feast</a> &middot; <a href="https://www.tecton.ai/blog/" target="_blank" rel="noopener">Tecton blog</a></div>
+      <p class="why">The open-source and commercial feature stores. Their docs and blogs are essentially a tour of every caching problem you've read about, framed for ML.</p>
+    </li>
+  </ul>
+
+  <h3>Embedding &amp; vector caches</h3>
+  <p>
+    Anywhere you have embeddings &mdash; recommendation towers, RAG retrievers,
+    ad ranking &mdash; you're caching high-dimensional vectors. Vector databases
+    (Pinecone, Weaviate, Milvus, pgvector) all have hot-key caches sitting in
+    front of their ANN indexes. The hard part is that "the same query" means
+    "close in vector space", not "byte-equal" &mdash; which brings us to&hellip;
+  </p>
+
+  <h2 id="semantic">11. Semantic cache playground</h2>
+
+  <p>
+    A <strong>semantic cache</strong> answers a query if any previously-seen
+    query was <em>semantically similar enough</em>. This is how you can cache
+    LLM responses even when users phrase the same question a dozen ways.
+  </p>
+
+  <p>
+    Real semantic caches encode each query as a vector (using an embedding
+    model), then compare with cosine similarity. The playground below uses a
+    much simpler proxy &mdash; word-overlap Jaccard similarity &mdash; because
+    we can compute it in the browser without downloading a model. The
+    <em>concept</em> is identical: pick a similarity function, pick a
+    threshold, and return the cached answer for the closest match if it clears
+    the bar.
+  </p>
+
+  <div class="playground">
+    <div class="row">
+      <label>Cached questions &amp; canned answers</label>
+      <div class="sem-list" id="sem-list"></div>
+    </div>
+
+    <div class="row">
+      <label>Type a new question</label>
+      <input type="text" id="sem-input" placeholder="e.g. how can I get my password back" />
+    </div>
+
+    <div class="row">
+      <label>Similarity threshold for a cache hit</label>
+      <div class="thresh-row">
+        <input type="range" id="sem-threshold" min="0" max="1" step="0.05" value="0.5" />
+        <span class="thresh-val" id="sem-threshold-val">0.50</span>
+      </div>
+    </div>
+
+    <div class="sem-verdict" id="sem-verdict">(type a question above)</div>
+  </div>
+
+  <div class="callout">
+    <strong>Try this:</strong> at threshold 0.50, type <em>"how do I get my
+    password back"</em>. Miss or hit? Now lower the threshold to 0.30. A cache
+    that's too loose returns confidently wrong answers; too tight and you pay
+    the LLM bill for every rephrasing. This is the central tuning knob of any
+    semantic cache.
+  </div>
+
+  <h2 id="kv">12. LLM KV cache and prompt caching</h2>
+
+  <h3>KV cache (inference-time, inside the model)</h3>
+  <p>
+    Transformers compute an attention "key" and "value" for every previous
+    token when generating the next one. Recomputing them per generated token
+    would be quadratic. Instead, the model caches them &mdash; the
+    <em>KV cache</em> &mdash; and grows the cache by one entry per generated
+    token. This cache dominates GPU memory in long-context serving.
+  </p>
+
+  <p>Two papers/systems worth knowing:</p>
+  <ul>
+    <li><a href="https://blog.vllm.ai/2023/06/20/vllm.html" target="_blank" rel="noopener">vLLM &amp; PagedAttention</a> &mdash; borrows OS-style paging to store the KV cache in fixed-size blocks, which massively raises effective batch size.</li>
+    <li><a href="https://research.character.ai/optimizing-inference/" target="_blank" rel="noopener">Character.AI &mdash; Optimizing Inference</a> &mdash; production war stories on KV cache reuse across turns.</li>
+  </ul>
+
+  <h3>Prompt caching (across API calls)</h3>
+  <p>
+    A newer layer: if your requests share a long prefix &mdash; a system prompt,
+    a big context document &mdash; the provider will cache the prefix's KV
+    tensors and skip re-encoding it on subsequent calls. You pay a discounted
+    per-token rate for the cached portion.
+  </p>
+  <ul>
+    <li><a href="https://www.anthropic.com/news/prompt-caching" target="_blank" rel="noopener">Anthropic &mdash; Prompt caching</a> (explicit, opt-in via cache-control breakpoints)</li>
+    <li><a href="https://openai.com/index/api-prompt-caching/" target="_blank" rel="noopener">OpenAI &mdash; API prompt caching</a> (automatic for prefixes over a threshold)</li>
+    <li><a href="https://github.com/zilliztech/GPTCache" target="_blank" rel="noopener">GPTCache</a> &mdash; open-source semantic cache library, if you want to see the pattern from section 11 built out as production code.</li>
+  </ul>
+
+  <div class="callout">
+    <strong>Design lens:</strong> classic caching asks "was this exact key
+    requested before?" Semantic caching asks "was anything close enough
+    requested before?" KV / prompt caching asks "does this request share a
+    prefix with an earlier one?" All three are the same bet on temporal
+    locality; the definition of "same" is what varies.
+  </div>
+
+  <h2 id="checklist">13. A short study checklist</h2>
+
+  <p>If you can explain each of these clearly, you've absorbed the material:</p>
+
+  <ol>
+    <li>Cache-aside vs write-through &mdash; when do you pick which?</li>
+    <li>Why LRU is a good default, and one workload where LFU beats it.</li>
+    <li>What causes a cache stampede, and three defenses.</li>
+    <li>Why <em>update DB, then delete cache</em> can still leave stale data, and how versioned keys sidestep the race.</li>
+    <li>What consistent hashing solves that <code>hash(key) % N</code> doesn't.</li>
+    <li>Why a feature store is "just" an online cache with strong SLAs.</li>
+    <li>How a semantic cache differs from a normal cache in a single sentence.</li>
+    <li>What's actually inside an LLM's KV cache, and why it's the bottleneck for long contexts.</li>
+  </ol>
+
+  <footer>
+    caching study guide &middot; read the Memcache paper once, then read the ML posts
+  </footer>
+</main>
+
+<script>
+  // ---------- LRU cache visualizer ----------
+  (function () {
+    const CAPACITY = 4;
+    const KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
+    let cache = []; // MRU at index 0
+    let hits = 0, misses = 0;
+
+    const cacheEl   = document.getElementById('lru-cache');
+    const logEl     = document.getElementById('lru-log');
+    const hitEl     = document.getElementById('lru-hits');
+    const missEl    = document.getElementById('lru-misses');
+    const ratioEl   = document.getElementById('lru-ratio');
+    const btnsEl    = document.getElementById('lru-buttons');
+    const resetBtn  = document.getElementById('lru-reset');
+
+    function render(flashKey) {
+      cacheEl.innerHTML = '';
+      for (let i = 0; i < CAPACITY; i++) {
+        const key = cache[i];
+        const slot = document.createElement('div');
+        let cls = 'slot';
+        if (key) cls += ' filled';
+        if (i === 0 && key) cls += ' mru-mark';
+        if (i === CAPACITY - 1 && cache.length === CAPACITY) cls += ' lru-mark';
+        if (key && key === flashKey) cls += ' flash';
+        slot.className = cls;
+        slot.textContent = key || '·';
+        cacheEl.appendChild(slot);
+      }
+      hitEl.textContent = String(hits);
+      missEl.textContent = String(misses);
+      const total = hits + misses;
+      ratioEl.textContent = total === 0 ? '—'
+        : Math.round((100 * hits) / total) + '%';
+    }
+
+    function log(event) {
+      const line = document.createElement('div');
+      line.className = 'log-line ' + event.kind;
+      let text = 'access ' + event.key + ' → ' + event.kind.toUpperCase();
+      if (event.evicted) {
+        text += ' ';
+        line.textContent = text;
+        const ev = document.createElement('span');
+        ev.className = 'evict';
+        ev.textContent = '(evicted ' + event.evicted + ')';
+        line.appendChild(ev);
+      } else {
+        line.textContent = text;
+      }
+      logEl.insertBefore(line, logEl.firstChild);
+      while (logEl.children.length > 10) logEl.removeChild(logEl.lastChild);
+    }
+
+    function access(key) {
+      const idx = cache.indexOf(key);
+      let event;
+      if (idx >= 0) {
+        cache.splice(idx, 1);
+        cache.unshift(key);
+        hits++;
+        event = { key: key, kind: 'hit', evicted: null };
+      } else {
+        let evicted = null;
+        if (cache.length >= CAPACITY) evicted = cache.pop();
+        cache.unshift(key);
+        misses++;
+        event = { key: key, kind: 'miss', evicted: evicted };
+      }
+      render(key);
+      log(event);
+    }
+
+    KEYS.forEach(function (k) {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = k;
+      b.addEventListener('click', function () { access(k); });
+      btnsEl.appendChild(b);
+    });
+
+    resetBtn.addEventListener('click', function () {
+      cache = [];
+      hits = 0;
+      misses = 0;
+      logEl.innerHTML = '';
+      render(null);
+    });
+
+    render(null);
+  })();
+
+  // ---------- Semantic cache playground ----------
+  (function () {
+    const cached = [
+      { q: 'how do I reset my password',
+        a: 'Go to Settings → Security → Reset password. A link will be emailed to you.' },
+      { q: 'what is your return policy',
+        a: 'Returns are accepted within 30 days of purchase, in original packaging.' },
+      { q: 'how much does shipping cost',
+        a: 'Standard shipping is $5, and free on orders over $50.' },
+      { q: 'where is my order right now',
+        a: 'Check tracking at yoursite.com/track using your order ID from the confirmation email.' },
+      { q: 'can I change my shipping address after ordering',
+        a: 'Address changes are possible until the order ships — contact support with your order ID.' }
+    ];
+
+    function tokens(s) {
+      const m = (s || '').toLowerCase().match(/[a-z]+/g);
+      return new Set(m || []);
+    }
+    function jaccard(a, b) {
+      if (a.size === 0 || b.size === 0) return 0;
+      let inter = 0;
+      a.forEach(function (t) { if (b.has(t)) inter++; });
+      const union = a.size + b.size - inter;
+      return union === 0 ? 0 : inter / union;
+    }
+
+    const listEl    = document.getElementById('sem-list');
+    const input     = document.getElementById('sem-input');
+    const thresh    = document.getElementById('sem-threshold');
+    const threshLbl = document.getElementById('sem-threshold-val');
+    const verdict   = document.getElementById('sem-verdict');
+
+    function render() {
+      const qTokens = tokens(input.value);
+      const t = parseFloat(thresh.value);
+      threshLbl.textContent = t.toFixed(2);
+
+      const scored = cached.map(function (c) {
+        return { q: c.q, a: c.a, sim: jaccard(qTokens, tokens(c.q)) };
+      }).sort(function (x, y) { return y.sim - x.sim; });
+
+      listEl.innerHTML = '';
+      scored.forEach(function (r, i) {
+        const row = document.createElement('div');
+        const isBest = i === 0 && r.sim >= t && input.value.trim().length > 0;
+        row.className = 'sem-row' + (isBest ? ' hit' : '');
+        const sim = document.createElement('div');
+        sim.className = 'sem-sim';
+        sim.textContent = r.sim.toFixed(2);
+        const q = document.createElement('div');
+        q.className = 'sem-q';
+        q.textContent = r.q;
+        row.appendChild(sim);
+        row.appendChild(q);
+        listEl.appendChild(row);
+      });
+
+      const best = scored[0];
+      const typed = input.value.trim();
+      if (!typed) {
+        verdict.className = 'sem-verdict';
+        verdict.textContent = '(type a question above)';
+      } else if (best.sim >= t) {
+        verdict.className = 'sem-verdict hit';
+        verdict.innerHTML =
+          '<strong>CACHE HIT</strong> (similarity ' + best.sim.toFixed(2) +
+          ' ≥ ' + t.toFixed(2) + ') — return: “' + best.a + '”';
+      } else {
+        verdict.className = 'sem-verdict miss';
+        verdict.innerHTML =
+          '<strong>CACHE MISS</strong> (best similarity ' + best.sim.toFixed(2) +
+          ' < ' + t.toFixed(2) + ') — call the LLM, then store the answer under a new key.';
+      }
+    }
+
+    input.addEventListener('input', render);
+    thresh.addEventListener('input', render);
+    render();
+  })();
+</script>
+</body>
+</html>

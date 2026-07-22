@@ -129,7 +129,13 @@ guide: true
   .block-card .pattern {
     font-family: 'Fira Code', monospace; font-size: 0.85rem;
     color: #7dd3fc; margin-bottom: 6px; letter-spacing: 1px;
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    row-gap: 4px; column-gap: 10px;
+    word-break: break-all;
   }
+  .block-card .pattern > span { display: inline-block; }
+  .block-card .pattern .unit { display: inline-flex; }
+  .block-card .pattern .unit > span { display: inline-block; }
   .block-card .explanation { font-size: 0.78rem; color: #94a3b8; line-height: 1.5; }
   .block-card .hex-val { color: #fbbf24; font-weight: 700; }
   .formula-box {
@@ -202,7 +208,7 @@ guide: true
     <div class="block-card">
       <h4>Step 1: block size 16</h4>
       <div class="pattern">
-        <span style="color:#c084fc">1111111111111111</span><span style="color:#34d399">0000000000000000</span>
+        <span class="unit"><span style="color:#c084fc">1111111111111111</span><span style="color:#34d399">0000000000000000</span></span>
       </div>
       <div class="explanation">
         One group of 32 bits. Upper 16 are <span class="hex-val">1s</span>, lower 16 are <span class="hex-val">0s</span>.<br>
@@ -213,7 +219,8 @@ guide: true
     <div class="block-card">
       <h4>Step 2: block size 8</h4>
       <div class="pattern">
-        <span style="color:#c084fc">11111111</span><span style="color:#34d399">00000000</span><span style="color:#c084fc">11111111</span><span style="color:#34d399">00000000</span>
+        <span class="unit"><span style="color:#c084fc">11111111</span><span style="color:#34d399">00000000</span></span>
+        <span class="unit"><span style="color:#c084fc">11111111</span><span style="color:#34d399">00000000</span></span>
       </div>
       <div class="explanation">
         Groups of 16, each split into 8+8.<br>
@@ -225,7 +232,10 @@ guide: true
     <div class="block-card">
       <h4>Step 3: block size 4</h4>
       <div class="pattern">
-        <span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span>
+        <span class="unit"><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span></span>
+        <span class="unit"><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span></span>
+        <span class="unit"><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span></span>
+        <span class="unit"><span style="color:#c084fc">1111</span><span style="color:#34d399">0000</span></span>
       </div>
       <div class="explanation">
         Groups of 8, each split into 4+4.<br>
@@ -237,7 +247,10 @@ guide: true
     <div class="block-card">
       <h4>Step 4: block size 2</h4>
       <div class="pattern">
-        <span style="color:#c084fc">11</span><span style="color:#34d399">00</span><span style="color:#c084fc">11</span><span style="color:#34d399">00</span><span style="color:#c084fc">11</span><span style="color:#34d399">00</span>…repeated
+        <span class="unit"><span style="color:#c084fc">11</span><span style="color:#34d399">00</span></span>
+        <span class="unit"><span style="color:#c084fc">11</span><span style="color:#34d399">00</span></span>
+        <span class="unit"><span style="color:#c084fc">11</span><span style="color:#34d399">00</span></span>
+        <span>…repeated</span>
       </div>
       <div class="explanation">
         Groups of 4, each split into 2+2.<br>
@@ -249,7 +262,11 @@ guide: true
     <div class="block-card">
       <h4>Step 5: block size 1</h4>
       <div class="pattern">
-        <span style="color:#c084fc">1</span><span style="color:#34d399">0</span><span style="color:#c084fc">1</span><span style="color:#34d399">0</span><span style="color:#c084fc">1</span><span style="color:#34d399">0</span><span style="color:#c084fc">1</span><span style="color:#34d399">0</span>…repeated
+        <span class="unit"><span style="color:#c084fc">1</span><span style="color:#34d399">0</span></span>
+        <span class="unit"><span style="color:#c084fc">1</span><span style="color:#34d399">0</span></span>
+        <span class="unit"><span style="color:#c084fc">1</span><span style="color:#34d399">0</span></span>
+        <span class="unit"><span style="color:#c084fc">1</span><span style="color:#34d399">0</span></span>
+        <span>…repeated</span>
       </div>
       <div class="explanation">
         Groups of 2, each split into 1+1.<br>
