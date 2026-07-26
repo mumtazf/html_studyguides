@@ -168,6 +168,83 @@ guide: true
     margin: 0.15rem 0 0;
   }
 
+  /* Primary reference callout (top-of-page) */
+  .primary-ref {
+    background: var(--bg-alt);
+    border-left: 4px solid var(--accent);
+    padding: 1rem 1.2rem;
+    margin: 0 0 2rem;
+    border-radius: 0 6px 6px 0;
+  }
+  .primary-ref .src {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.3rem;
+  }
+  .primary-ref .title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin-bottom: 0.3rem;
+  }
+  .primary-ref .why {
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  /* Inline diagrams (SVG) */
+  .diagram {
+    margin: 1.4rem auto 1.6rem;
+    padding: 0;
+    text-align: center;
+  }
+  .diagram svg {
+    max-width: 100%;
+    height: auto;
+    color: var(--ink);
+    display: block;
+    margin: 0 auto;
+  }
+  .diagram .dg-box {
+    fill: var(--bg);
+    stroke: var(--accent);
+    stroke-width: 1.5;
+  }
+  .diagram .dg-label {
+    fill: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .diagram .dg-arrow {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1.5;
+  }
+  .diagram .dg-arrow.async {
+    stroke-dasharray: 5 4;
+  }
+  .diagram .dg-note {
+    fill: var(--ink-soft);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    text-anchor: middle;
+  }
+  .diagram figcaption {
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    margin: 0.5rem auto 0;
+    padding: 0 1rem;
+    max-width: 36rem;
+  }
+
   /* Interactive playgrounds */
   .playground {
     background: var(--bg-alt);
@@ -375,6 +452,16 @@ guide: true
 </head>
 <body>
 <main>
+  <!-- Shared SVG marker defs used by all inline diagrams below -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <marker id="dg-arrow-head" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+      </marker>
+    </defs>
+  </svg>
+
   <h1>Caching, from LRU to LLMs</h1>
   <p class="tagline">the classic patterns, the reading list, and where it meets ML</p>
 
@@ -386,6 +473,12 @@ guide: true
     modern ML systems &mdash; feature stores, embedding caches, and the
     semantic and KV caches that make LLM serving affordable.
   </p>
+
+  <div class="primary-ref">
+    <p class="src">Primary reference for this guide</p>
+    <div class="title"><a href="https://codeahoy.com/2017/08/11/caching-strategies-and-how-to-choose-the-right-one/" target="_blank" rel="noopener">Caching Strategies and How to Choose the Right One &mdash; CodeAhoy</a></div>
+    <p class="why">The single clearest short article on read and write cache patterns and how to pair them. The <a href="#read">Read patterns</a> and <a href="#write">Write patterns</a> sections below are structured around its taxonomy &mdash; read it first, then use this guide as an expanded set of notes.</p>
+  </div>
 
   <div class="toc">
     <strong>Contents</strong>
@@ -466,8 +559,43 @@ guide: true
 
   <h2 id="read">3. Read patterns</h2>
 
+  <p>
+    Two read patterns dominate. Both are <em>lazy</em> &mdash; they only
+    populate the cache on demand &mdash; but they differ in <em>who</em> is
+    responsible for the fallback to the database on a miss.
+  </p>
+
   <h3>Cache-aside (aka lazy loading)</h3>
-  <p>The application does the work. Check cache; on miss, fetch from DB and populate the cache.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 560 180" role="img" aria-labelledby="dg-ca-title">
+      <title id="dg-ca-title">Cache-aside: the app talks to cache and DB directly</title>
+      <rect class="dg-box" x="40"  y="65"  width="120" height="50" rx="8" />
+      <text class="dg-label" x="100" y="90">App</text>
+      <rect class="dg-box" x="380" y="15"  width="120" height="50" rx="8" />
+      <text class="dg-label" x="440" y="40">Cache</text>
+      <rect class="dg-box" x="380" y="115" width="120" height="50" rx="8" />
+      <text class="dg-label" x="440" y="140">DB</text>
+      <line class="dg-arrow" x1="160" y1="78"  x2="380" y2="45"
+            marker-start="url(#dg-arrow-head)" marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="270" y="54">read / write</text>
+      <line class="dg-arrow" x1="160" y1="102" x2="380" y2="135"
+            marker-start="url(#dg-arrow-head)" marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="270" y="128">read / write</text>
+    </svg>
+    <figcaption>The app talks to both the cache and the DB. There is no direct link between them.</figcaption>
+  </figure>
+
+  <p>
+    The cache sits <em>on the side</em>. The application talks to both the
+    cache and the database directly; the cache and the database don't know
+    about each other. On a read:
+  </p>
+  <ol>
+    <li>App checks the cache.</li>
+    <li><strong>Hit</strong> &mdash; return the cached value.</li>
+    <li><strong>Miss</strong> &mdash; app queries the DB, returns the value to the client, and stores it in the cache so subsequent reads hit.</li>
+  </ol>
   <pre><code><span class="k">def</span> get_user(user_id):
     user = cache.get(user_id)
     <span class="k">if</span> user <span class="k">is not</span> <span class="n">None</span>:
@@ -476,48 +604,210 @@ guide: true
     cache.set(user_id, user, ttl=<span class="n">300</span>)
     <span class="k">return</span> user</code></pre>
   <p>
-    Dominant in practice because it's simple and only caches things that are
-    actually asked for. The tradeoff: every miss is a round-trip to the cache
-    <em>and</em> a round-trip to the DB.
+    <strong>Why it dominates:</strong> it's simple, it only caches things
+    actually asked for, and it's <em>resilient to cache failure</em> &mdash;
+    if the cache cluster dies, the app degrades to talking directly to the DB
+    instead of falling over. (Response times get ugly under load, but the
+    system stays up.) A useful bonus: the cache's data model doesn't have to
+    match the DB's &mdash; you can cache the joined result of five queries
+    under a single key.
+  </p>
+  <p>
+    <strong>The tradeoff:</strong> every miss pays for a cache round-trip
+    <em>plus</em> a DB round-trip. And because writes typically bypass the
+    cache (going straight to the DB), the cache can drift out of sync &mdash;
+    so cache-aside almost always uses TTLs, or pairs with a write strategy
+    from the next section.
   </p>
 
   <h3>Read-through</h3>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 560 130" role="img" aria-labelledby="dg-rt-title">
+      <title id="dg-rt-title">Read-through: cache sits in-line between app and DB</title>
+      <rect class="dg-box" x="40"  y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="100" y="65">App</text>
+      <rect class="dg-box" x="220" y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="280" y="65">Cache</text>
+      <rect class="dg-box" x="400" y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="460" y="65">DB</text>
+      <line class="dg-arrow" x1="160" y1="65" x2="220" y2="65"
+            marker-start="url(#dg-arrow-head)" marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="190" y="32">get / return</text>
+      <line class="dg-arrow" x1="340" y1="65" x2="400" y2="65"
+            marker-start="url(#dg-arrow-head)" marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="370" y="32">load on miss</text>
+    </svg>
+    <figcaption>The app only talks to the cache. On a miss, the cache library loads from the DB.</figcaption>
+  </figure>
+
   <p>
-    Same behavior, but the cache library is in charge of the fallback. The
-    application only ever calls <code>cache.get()</code>. Nicer abstraction,
-    less flexible when the "fetch from origin" logic is complicated.
+    The cache sits <em>in-line</em> between the application and the database.
+    The app only ever calls <code>cache.get(key)</code>; the cache library
+    handles the miss by loading from the DB, storing the result, and
+    returning it.
+  </p>
+  <p>
+    <strong>Vs. cache-aside:</strong> nicer abstraction, but the cache's data
+    model has to match the DB's (the cache is fetching whole rows on your
+    behalf), and you lose the app-level flexibility to compose cached values
+    from multiple queries. Both patterns share the same cold-start problem
+    &mdash; the very first request for any key is always a miss. Production
+    systems handle this by <em>cache warming</em> or <em>pre-heating</em>:
+    replaying common queries before serving real traffic.
   </p>
 
   <h2 id="write">4. Write patterns</h2>
 
+  <p>
+    Write patterns are usually chosen <em>together</em> with a read pattern.
+    The interesting question isn't "which write strategy" &mdash; it's "which
+    combination". Each strategy below is defined by what happens on an
+    <code>update</code>, and by how consistent it leaves the cache vs. the
+    database.
+  </p>
+
+  <h3>Write-through</h3>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 560 130" role="img" aria-labelledby="dg-wt-title">
+      <title id="dg-wt-title">Write-through: writes flow through the cache to the DB, synchronously</title>
+      <rect class="dg-box" x="40"  y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="100" y="65">App</text>
+      <rect class="dg-box" x="220" y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="280" y="65">Cache</text>
+      <rect class="dg-box" x="400" y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="460" y="65">DB</text>
+      <line class="dg-arrow" x1="160" y1="65" x2="220" y2="65"
+            marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="190" y="32">1. write</text>
+      <line class="dg-arrow" x1="340" y1="65" x2="400" y2="65"
+            marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="370" y="32">2. sync write</text>
+    </svg>
+    <figcaption>Both writes are synchronous &mdash; the app waits for the DB write to complete before its call returns.</figcaption>
+  </figure>
+
+  <p>
+    Every write goes to the cache first; the cache synchronously forwards it
+    to the database. When the write returns, cache and DB agree.
+  </p>
+  <p>
+    <strong>On its own, it looks bad</strong> &mdash; every write now pays
+    two hops. It shines when paired with <em>read-through</em>: you get the
+    read-through abstraction <em>and</em> a consistency guarantee, so you
+    don't have to invalidate anything (assuming <em>all</em> writes go
+    through the cache). AWS's DynamoDB Accelerator (DAX) is the textbook
+    example of a read-through / write-through cache sitting in front of
+    DynamoDB.
+  </p>
+
+  <h3>Write-around</h3>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 560 170" role="img" aria-labelledby="dg-wa-title">
+      <title id="dg-wa-title">Write-around: writes bypass the cache; reads still go through it</title>
+      <text class="dg-note" x="280" y="14">reads</text>
+      <rect class="dg-box" x="220" y="25"  width="120" height="50" rx="8" />
+      <text class="dg-label" x="280" y="50">Cache</text>
+      <rect class="dg-box" x="40"  y="90"  width="120" height="50" rx="8" />
+      <text class="dg-label" x="100" y="115">App</text>
+      <rect class="dg-box" x="400" y="90"  width="120" height="50" rx="8" />
+      <text class="dg-label" x="460" y="115">DB</text>
+      <line class="dg-arrow async" x1="165" y1="95" x2="220" y2="65"
+            marker-start="url(#dg-arrow-head)" marker-end="url(#dg-arrow-head)" />
+      <line class="dg-arrow async" x1="340" y1="65" x2="395" y2="95"
+            marker-start="url(#dg-arrow-head)" marker-end="url(#dg-arrow-head)" />
+      <line class="dg-arrow" x1="160" y1="115" x2="400" y2="115"
+            marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="280" y="135">write: skips the cache</text>
+    </svg>
+    <figcaption>Writes go straight to the DB. Reads (dashed) still go through the cache; it populates on read miss.</figcaption>
+  </figure>
+
+  <p>
+    Writes skip the cache entirely and go straight to the database. Data
+    only lands in the cache when it's later read (via cache-aside or
+    read-through).
+  </p>
+  <p>
+    <strong>Use when writes are unlikely to be re-read soon</strong> &mdash;
+    real-time logs, chatroom messages, telemetry ingest. Write-through would
+    fill the cache with garbage nobody ever asks for again; write-around
+    avoids that and only spends cache space on data a reader has proved it
+    wants.
+  </p>
+
+  <h3>Write-back (aka write-behind)</h3>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 560 130" role="img" aria-labelledby="dg-wb-title">
+      <title id="dg-wb-title">Write-back: cache acknowledges write immediately, flushes to DB later</title>
+      <rect class="dg-box" x="40"  y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="100" y="65">App</text>
+      <rect class="dg-box" x="220" y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="280" y="65">Cache</text>
+      <rect class="dg-box" x="400" y="40" width="120" height="50" rx="8" />
+      <text class="dg-label" x="460" y="65">DB</text>
+      <line class="dg-arrow" x1="160" y1="65" x2="220" y2="65"
+            marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="190" y="32">1. write (ack)</text>
+      <line class="dg-arrow async" x1="340" y1="65" x2="400" y2="65"
+            marker-end="url(#dg-arrow-head)" />
+      <text class="dg-note" x="370" y="32">2. flush async</text>
+    </svg>
+    <figcaption>The cache acknowledges immediately; the flush to the DB (dashed) happens in the background.</figcaption>
+  </figure>
+
+  <p>
+    The application writes to the cache and gets an immediate ack; the cache
+    asynchronously flushes to the DB in the background, often batching or
+    coalescing many writes into one DB round-trip.
+  </p>
+  <p>
+    <strong>Great for write-heavy or bursty workloads.</strong> The cache
+    absorbs spikes, the DB sees a smoothed stream, and if the DB provider
+    charges per request (looking at you, DynamoDB), batching cuts the bill.
+    It's also tolerant of short DB outages. The <em>catch:</em> if the cache
+    crashes before flushing, those writes are gone. This is why write-back
+    is standard <em>inside</em> databases (InnoDB's log buffer, Postgres's
+    WAL buffers &mdash; the DB owns the durability guarantee) but used more
+    cautiously for user data at the application layer.
+  </p>
+
+  <h3>Picking a combination</h3>
+  <p>
+    A shortlist of pairings that make sense together. If your workload
+    doesn't match one of these, the CodeAhoy article's section-by-section
+    trade-off discussion is where to start reasoning from first principles.
+  </p>
   <table>
     <thead>
-      <tr><th>Pattern</th><th>How it works</th><th>Tradeoff</th></tr>
+      <tr><th>Workload</th><th>Reads</th><th>Writes</th></tr>
     </thead>
     <tbody>
       <tr>
+        <td>General read-heavy</td>
+        <td>Cache-aside</td>
+        <td>Write directly to DB + TTL</td>
+      </tr>
+      <tr>
+        <td>Read-heavy, need consistency</td>
+        <td>Read-through</td>
         <td>Write-through</td>
-        <td>Every write goes to cache <em>and</em> DB, synchronously.</td>
-        <td>Consistent, but every write pays two hops.</td>
       </tr>
       <tr>
-        <td>Write-back (write-behind)</td>
-        <td>Write to cache only; a background flush persists to DB later.</td>
-        <td>Fast writes, but a cache crash before flush loses data.</td>
-      </tr>
-      <tr>
+        <td>Write-once, read-rarely (logs)</td>
+        <td>Read-through or cache-aside</td>
         <td>Write-around</td>
-        <td>Write straight to DB; do not populate the cache on write.</td>
-        <td>Good when written data is rarely read soon after.</td>
+      </tr>
+      <tr>
+        <td>Write-heavy, bursty</td>
+        <td>Read-through</td>
+        <td>Write-back</td>
       </tr>
     </tbody>
   </table>
-
-  <p>
-    Real systems mix these. A common combo is <em>cache-aside for reads</em>
-    plus <em>write-through for updates</em>, so the cache never returns a value
-    it just watched the DB accept.
-  </p>
 
   <h2 id="eviction">5. Eviction policies &mdash; and an LRU playground</h2>
 
@@ -667,9 +957,9 @@ guide: true
       <p class="why">Still the canonical read. Covers stampede protection ("leases"), regional pools, and cache consistency across data centers. Referenced by every serious caching post since.</p>
     </li>
     <li>
-      <div class="src">CodeAhoy</div>
-      <div class="title"><a href="https://codeahoy.com/2017/08/11/caching-strategies-and-how-to-choose-the-right-one/" target="_blank" rel="noopener">Caching Strategies and How to Choose the Right One</a></div>
-      <p class="why">Clean tour of cache-aside, read-through, write-through, write-back, refresh-ahead. Good after the Facebook paper for putting names on patterns.</p>
+      <div class="src">CodeAhoy &middot; follow-up</div>
+      <div class="title"><a href="https://codeahoy.com/2022/04/03/cache-invalidation/" target="_blank" rel="noopener">A Brief Overview of Caching and Cache Invalidation</a></div>
+      <p class="why">Companion piece to the primary reference at the top. Focuses specifically on invalidation strategies &mdash; useful after you've picked a read/write combination.</p>
     </li>
     <li>
       <div class="src">Netflix</div>
