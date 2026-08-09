@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<!-- saved from url=(0101)file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building Large Language Models (LLMs) | Study Guide</title>
+    <style>
+        :root {
+            --primary: #60A5FA;
+            --primary-light: #93C5FD;
+            --primary-dark: #3B82F6;
+            --accent: #FBBF24;
+            --bg: #0F172A;
+            --card-bg: #1E293B;
+            --text: #E2E8F0;
+            --text-muted: #94A3B8;
+            --border: #334155;
+            --code-bg: #1E293B;
+            --success: #34D399;
+            --info: #38BDF8;
+            --purple: #A78BFA;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        header {
+            background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 50%, #5B21B6 100%);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.08) 0%, transparent 60%),
+                        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.05) 0%, transparent 40%);
+        }
+        header h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 0.5rem; position: relative; letter-spacing: -0.5px; }
+        header .subtitle { font-size: 1.05rem; opacity: 0.9; position: relative; font-weight: 300; }
+        header .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: white;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-top: 1rem;
+            position: relative;
+        }
+        header .meta { margin-top: 0.7rem; font-size: 0.85rem; opacity: 0.75; position: relative; }
+        nav.toc {
+            background: #1E293B;
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+        }
+        nav.toc h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 0.75rem; font-weight: 600; }
+        nav.toc ol { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; counter-reset: toc-counter; }
+        nav.toc li { counter-increment: toc-counter; }
+        nav.toc li::before { content: counter(toc-counter) "."; font-weight: 700; color: var(--primary); margin-right: 0.3rem; }
+        nav.toc a { color: var(--text); text-decoration: none; font-size: 0.88rem; transition: color 0.2s; }
+        nav.toc a:hover { color: var(--primary); text-decoration: underline; }
+        main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+        .section {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: box-shadow 0.2s;
+        }
+        .section:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .section-header {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .section-header .num {
+            background: rgba(255,255,255,0.2);
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1rem; flex-shrink: 0;
+        }
+        .section-header h2 { font-size: 1.2rem; font-weight: 600; }
+        .section-header .timestamp {
+            margin-left: auto;
+            background: rgba(255,255,255,0.15);
+            padding: 0.2rem 0.7rem;
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            white-space: nowrap;
+        }
+        .section-body { padding: 1.5rem; }
+        .section-body h3 {
+            color: var(--primary-dark);
+            font-size: 1.05rem;
+            margin: 1.5rem 0 0.5rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 2px solid var(--border);
+            font-weight: 700;
+        }
+        .section-body h3:first-child { margin-top: 0; }
+        .section-body p { margin-bottom: 0.8rem; }
+        .section-body ul, .section-body ol { margin: 0.5rem 0 1rem 1.5rem; }
+        .section-body li { margin-bottom: 0.4rem; }
+        .takeaway {
+            background: linear-gradient(135deg, #422006 0%, #451a03 100%);
+            border-left: 4px solid var(--accent);
+            padding: 1rem 1.25rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .takeaway strong { color: #FBBF24; }
+        .formula {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.92rem;
+            text-align: center;
+            overflow-x: auto;
+        }
+        .definition {
+            background: #172554;
+            border-left: 4px solid var(--info);
+            padding: 0.8rem 1.2rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .definition strong { color: var(--info); }
+        .slide-ref {
+            display: inline-block;
+            background: #064E3B;
+            color: var(--success);
+            padding: 0.15rem 0.6rem;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            vertical-align: middle;
+            margin-left: 0.3rem;
+        }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; border-radius: 8px; overflow: hidden; }
+        thead th { background: #1E3A8A; color: white; padding: 0.7rem 1rem; text-align: left; font-weight: 600; }
+        tbody td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
+        tbody tr:nth-child(even) { background: #0F172A; }
+        .flow { display: flex; flex-wrap: wrap; gap: 0; align-items: center; justify-content: center; margin: 1.2rem 0; }
+        .flow-step {
+            background: var(--primary);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.83rem;
+            font-weight: 600;
+            text-align: center;
+            min-width: 90px;
+        }
+        .flow-arrow { font-size: 1.3rem; color: var(--primary); padding: 0 0.3rem; }
+        .quiz {
+            background: #2E1065;
+            border: 1px solid #581C87;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .quiz h4 { color: #C4B5FD; margin-bottom: 0.7rem; font-size: 0.95rem; }
+        .quiz details { margin-top: 0.5rem; }
+        .quiz summary { cursor: pointer; color: #C4B5FD; font-weight: 600; font-size: 0.88rem; }
+        .quiz details p { margin-top: 0.4rem; padding-left: 1rem; border-left: 2px solid #581C87; }
+        footer { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; border-top: 1px solid var(--border); max-width: 960px; margin: 0 auto; }
+        footer a { color: var(--primary); }
+        @media print { nav.toc { position: static; } .section { break-inside: avoid; } }
+        @media (max-width: 700px) {
+            header h1 { font-size: 1.5rem; }
+            nav.toc ol { flex-direction: column; gap: 0.3rem; }
+            .flow { flex-direction: column; }
+            .flow-arrow { transform: rotate(90deg); }
+            .section-header { flex-wrap: wrap; }
+            .section-header .timestamp { margin-left: 0; margin-top: 0.3rem; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Building Large Language Models (LLMs)</h1>
+    <div class="subtitle">Guest Lecture by Yann Dubois — Introduction to Building LLMs</div>
+    <div class="badge">📖 Study &amp; Presentation Guide · First 25 Minutes</div>
+    <div class="meta">CS229 Machine Learning · Based on lecture video &amp; slides</div>
+</header>
+
+<nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s1">Introduction &amp; Motivation</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s2">Five Key Components</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s3">Pre-training vs. Post-training</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s4">Language Modeling Fundamentals</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s5">Autoregressive Models</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s6">Training Pipeline &amp; Loss</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s7">Tokenization &amp; BPE</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s8">Evaluation &amp; Benchmarks</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s9">Data Collection</a></li>
+        <li><a href="file:///C:/Users/mumta/.copilot/chats/1c6494db-6906-4b9f-bfdd-d29524810c58/cs229-llm-study-guide.html#s10">Scaling Laws</a></li>
+    </ol>
+</nav>
+
+<main>
+
+<!-- SECTION 1 -->
+<div class="section" id="s1">
+    <div class="section-header">
+        <span class="num">1</span>
+        <h2>Introduction &amp; Motivation</h2>
+        <span class="timestamp">~0:00 – 2:00</span>
+    </div>
+    <div class="section-body">
+        <p>The lecture frames <strong>Large Language Models</strong> as the dominant paradigm for modern AI assistants. <span class="slide-ref">Slides 1–4</span></p>
+        <ul>
+            <li><strong>ChatGPT</strong> (OpenAI)</li>
+            <li><strong>Claude</strong> (Anthropic)</li>
+            <li><strong>Gemini</strong> (Google)</li>
+            <li><strong>Llama</strong> (Meta)</li>
+        </ul>
+        <div class="definition">
+            <strong>Definition:</strong> LLMs are neural networks trained on massive text data to model and generate human language. They power modern chatbots and generative AI systems.
+        </div>
+        <p>The speaker (Yann Dubois, Stanford PhD student working on LLM evaluation) positions this as a <em>high-level survey</em> of the components needed to build and deploy LLMs. <span class="slide-ref">Slide 2</span></p>
+        <div class="takeaway">
+            <strong>🔑 Key Takeaway:</strong> While architecture gets the most academic attention, practical LLM quality depends heavily on data, evaluation, and systems optimizations.
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 2 -->
+<div class="section" id="s2">
+    <div class="section-header">
+        <span class="num">2</span>
+        <h2>Five Key Components of LLMs</h2>
+        <span class="timestamp">~2:00 – 4:00</span>
+    </div>
+    <div class="section-body">
+        <p>Five components determine practical LLM performance: <span class="slide-ref">Slide 5</span></p>
+        <table>
+            <thead><tr><th>#</th><th>Component</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td>1</td><td><strong>Architecture</strong></td><td>Neural network structure (Transformers)</td></tr>
+                <tr><td>2</td><td><strong>Training Loss &amp; Algorithm</strong></td><td>Cross-entropy loss, AdamW optimizer</td></tr>
+                <tr><td>3</td><td><strong>Training Data</strong></td><td>Textual corpora — quality &amp; scale matter enormously</td></tr>
+                <tr><td>4</td><td><strong>Evaluation</strong></td><td>Metrics and benchmarks to assess performance</td></tr>
+                <tr><td>5</td><td><strong>Systems / Infrastructure</strong></td><td>GPUs, parallelization, mixed precision, FlashAttention</td></tr>
+            </tbody>
+        </table>
+        <h3>Academic vs. Industry Focus</h3>
+        <ul>
+            <li><strong>Academia:</strong> architecture and algorithms</li>
+            <li><strong>Industry:</strong> data, evaluation, and systems — these dominate real-world success</li>
+        </ul>
+        <p>Most modern LLMs use <strong>Transformer</strong> variants. The lecture assumes prior familiarity with the architecture. <span class="slide-ref">Slide 6</span></p>
+    </div>
+</div>
+
+<!-- SECTION 3 -->
+<div class="section" id="s3">
+    <div class="section-header">
+        <span class="num">3</span>
+        <h2>Pre-training vs. Post-training</h2>
+        <span class="timestamp">~4:00 – 6:00</span>
+    </div>
+    <div class="section-body">
+        <p>LLM development follows a <strong>two-stage paradigm</strong>: <span class="slide-ref">Slides 7–9</span></p>
+        <div class="flow">
+            <div class="flow-step">Stage 1<br><strong>Pre-training</strong></div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Stage 2<br><strong>Post-training</strong></div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="background: var(--success);">AI Assistant</div>
+        </div>
+        <table>
+            <thead><tr><th>Stage</th><th>What It Does</th><th>Key Techniques</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Pre-training</strong></td><td>Self-supervised language modeling on large corpora</td><td>Next-token prediction, cross-entropy loss</td></tr>
+                <tr><td><strong>Post-training</strong></td><td>Alignment &amp; instruction tuning → assistant behavior</td><td>SFT, RLHF (PPO), DPO</td></tr>
+            </tbody>
+        </table>
+        <h3>Historical Context</h3>
+        <ul>
+            <li><strong>GPT-2 / GPT-3</strong> — landmarks in pre-training</li>
+            <li><strong>InstructGPT / ChatGPT</strong> — catalyzed adoption of post-training (RLHF)</li>
+            <li>Post-training turns a raw "text completer" into a helpful, harmless assistant</li>
+        </ul>
+        <div class="takeaway">
+            <strong>🔑 Key Takeaway:</strong> Pre-training provides broad language knowledge; post-training (SFT + RLHF/DPO) shapes the model into a useful assistant that follows instructions.
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 4 -->
+<div class="section" id="s4">
+    <div class="section-header">
+        <span class="num">4</span>
+        <h2>Language Modeling Fundamentals</h2>
+        <span class="timestamp">~6:00 – 9:00</span>
+    </div>
+    <div class="section-body">
+        <p>Language models are <strong>probability distributions over token sequences</strong>. <span class="slide-ref">Slides 10–13</span></p>
+        <h3>What Language Models Do</h3>
+        <ul>
+            <li><strong>Model text:</strong> Assign probabilities — higher for plausible text, lower for nonsense</li>
+            <li><strong>Generate text:</strong> Sample from the learned distribution</li>
+            <li><strong>Distinguish valid from invalid:</strong> Higher likelihood = more coherent</li>
+        </ul>
+        <div class="formula">P("The cat sat on the mat") &gt;&gt; P("Mat the on sat cat the")</div>
+        <div class="definition">
+            <strong>Core Insight:</strong> A language model assigns a probability to every possible string. Good text gets high probability; bad text gets low probability. This single mechanism enables both understanding and generation.
+        </div>
+        <div class="takeaway">
+            <strong>🔑 Key Takeaway:</strong> Language models learn a probability distribution over sequences — this single mechanism enables both understanding and generation of human-like text.
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 5 -->
+<div class="section" id="s5">
+    <div class="section-header">
+        <span class="num">5</span>
+        <h2>Autoregressive Models &amp; Sampling</h2>
+        <span class="timestamp">~9:00 – 12:00</span>
+    </div>
+    <div class="section-body">
+        <p><strong>Autoregressive (AR) models</strong> factor sequence probabilities via the <strong>chain rule</strong>: <span class="slide-ref">Slides 14–16</span></p>
+        <div class="formula">P(x₁, x₂, …, x_L) = ∏ P(xᵢ | x₁, …, xᵢ₋₁)</div>
+        <p>The probability of a full sequence = product of each token's conditional probability given all preceding tokens.</p>
+        <h3>Sampling Loop</h3>
+        <div class="flow">
+            <div class="flow-step">1. Context</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">2. Compute P(next)</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">3. Sample token</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">4. Append &amp; repeat</div>
+        </div>
+        <h3>Trade-offs</h3>
+        <table>
+            <thead><tr><th>Aspect</th><th>Detail</th></tr></thead>
+            <tbody>
+                <tr><td>✅ <strong>Upside</strong></td><td>Exact factorization; well-understood; widely used</td></tr>
+                <tr><td>⚠️ <strong>Downside</strong></td><td>Sequential generation → latency grows with output length</td></tr>
+            </tbody>
+        </table>
+        <h3>Example (from slides) <span class="slide-ref">Slide 15</span></h3>
+        <p>Input: <em>"She likely prefers"</em> → model computes P(next | context) for all vocab tokens, then samples — might predict <strong>"dogs"</strong>, <strong>"coffee"</strong>, etc.</p>
+    </div>
+</div>
+
+<!-- SECTION 6 -->
+<div class="section" id="s6">
+    <div class="section-header">
+        <span class="num">6</span>
+        <h2>Training Pipeline &amp; Loss Function</h2>
+        <span class="timestamp">~12:00 – 14:00</span>
+    </div>
+    <div class="section-body">
+        <p>The autoregressive training pipeline: <span class="slide-ref">Slides 17–19</span></p>
+        <div class="flow">
+            <div class="flow-step">Raw Text</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Tokenize</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Embed</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Transformer</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Linear Head</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Softmax</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="background: var(--accent); color: #1a1a1a;">P(next)</div>
+        </div>
+        <h3>Step-by-Step</h3>
+        <ol>
+            <li><strong>Tokenize</strong> raw text into subword tokens</li>
+            <li><strong>Embed</strong> tokens into dense vectors</li>
+            <li>Pass through <strong>Transformer</strong> layers → contextualized representations</li>
+            <li><strong>Linear projection</strong> to vocab-sized logits</li>
+            <li><strong>Softmax</strong> → probability distribution over next token</li>
+            <li>Optimize <strong>cross-entropy loss</strong> against actual next token</li>
+        </ol>
+        <div class="definition">
+            <strong>Cross-Entropy Loss:</strong> Compares predicted distribution to actual target. Minimizing CE = maximizing log-likelihood.
+        </div>
+        <div class="formula">L = −(1/L) Σᵢ log P_θ(xᵢ | x₁, …, xᵢ₋₁)</div>
+        <p><strong>Note:</strong> Output dimension = <strong>vocabulary size</strong> (32k–128k), which is why tokenization choices are consequential. <span class="slide-ref">Slide 18</span></p>
+    </div>
+</div>
+
+<!-- SECTION 7 -->
+<div class="section" id="s7">
+    <div class="section-header">
+        <span class="num">7</span>
+        <h2>Tokenization &amp; Byte-Pair Encoding (BPE)</h2>
+        <span class="timestamp">~14:00 – 18:00</span>
+    </div>
+    <div class="section-body">
+        <p>Tokenization converts text into discrete units the model processes. <span class="slide-ref">Slides 20–24</span></p>
+        <h3>Why Not Words or Characters?</h3>
+        <table>
+            <thead><tr><th>Strategy</th><th>Pros</th><th>Cons</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Word-level</strong></td><td>Semantically meaningful</td><td>Huge vocab; fails on rare words/typos</td></tr>
+                <tr><td><strong>Character-level</strong></td><td>Tiny vocab; handles anything</td><td>Very long sequences → O(L²) cost</td></tr>
+                <tr><td><strong>Subword (BPE)</strong></td><td>Balanced vocab &amp; length</td><td>~3–4 chars/token average</td></tr>
+            </tbody>
+        </table>
+        <h3>BPE Algorithm</h3>
+        <ol>
+            <li><strong>Initialize</strong> vocabulary as all individual bytes/characters</li>
+            <li><strong>Find</strong> the most frequent adjacent pair in corpus</li>
+            <li><strong>Merge</strong> that pair into a new token; add to vocab</li>
+            <li><strong>Repeat</strong> until desired vocabulary size reached</li>
+        </ol>
+        <h3>Example <span class="slide-ref">Slide 22</span></h3>
+        <div class="formula">"unbreakable" → ["un", "break", "able"]<br>Rare words decompose into known subwords</div>
+        <h3>Implementation Notes</h3>
+        <ul>
+            <li><strong>Pre-tokenizers</strong> split on spaces/punctuation before BPE</li>
+            <li>Retaining small tokens improves <strong>robustness to typos</strong></li>
+            <li>Struggles with: long numbers, code syntax, specialized notation</li>
+            <li>Common vocab sizes: 32k (LLaMA), 50k (GPT-2), 100k+ (GPT-4)</li>
+        </ul>
+        <div class="takeaway">
+            <strong>🔑 Key Takeaway:</strong> BPE gives the best trade-off — manageable vocabulary for efficient softmax, short sequences for fast attention, and robustness to unseen words.
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 8 -->
+<div class="section" id="s8">
+    <div class="section-header">
+        <span class="num">8</span>
+        <h2>Evaluation: Perplexity &amp; Benchmarks</h2>
+        <span class="timestamp">~18:00 – 22:00</span>
+    </div>
+    <div class="section-body">
+        <h3>Perplexity <span class="slide-ref">Slides 25–28</span></h3>
+        <div class="definition">
+            <strong>Perplexity</strong> = exponentiated average per-token cross-entropy. Intuitively: "how many tokens is the model choosing between on average?"
+        </div>
+        <div class="formula">PPL = exp( −(1/L) Σ log P(xᵢ | x&lt;ᵢ) ) = 2^(CE Loss)</div>
+        <table>
+            <thead><tr><th>Perplexity</th><th>Interpretation</th></tr></thead>
+            <tbody>
+                <tr><td><strong>1</strong></td><td>Perfect prediction</td></tr>
+                <tr><td><strong>10–20</strong></td><td>Good model — choosing among ~10-20 plausible tokens</td></tr>
+                <tr><td><strong>≈ |V|</strong></td><td>Uniform random (worst case)</td></tr>
+            </tbody>
+        </table>
+        <p><strong>Limitation:</strong> Depends on tokenizer &amp; test set → cross-model comparison unreliable.</p>
+        <h3>Task-Based Benchmarks <span class="slide-ref">Slides 29–32</span></h3>
+        <ul>
+            <li><strong>MMLU</strong> — 57-domain college-level MCQ</li>
+            <li><strong>HELM</strong> — Holistic Evaluation of Language Models</li>
+            <li><strong>HuggingFace Open LLM Leaderboard</strong></li>
+        </ul>
+        <h3>Evaluation Challenges</h3>
+        <ol>
+            <li><strong>Inconsistent protocols</strong> — different orgs report divergent results</li>
+            <li><strong>Contamination</strong> — benchmark data leaks into training sets</li>
+        </ol>
+        <div class="definition">
+            <strong>Contamination Detection:</strong> Compare likelihood of test examples in original order vs. random permutation. Higher in original order → data was seen during training. <span class="slide-ref">Slide 31</span>
+        </div>
+        <div class="takeaway">
+            <strong>🔑 Key Takeaway:</strong> Perplexity is useful for dev but not cross-model comparison. Task benchmarks provide standardized evaluation but face contamination and inconsistency.
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 9 -->
+<div class="section" id="s9">
+    <div class="section-header">
+        <span class="num">9</span>
+        <h2>Data Collection &amp; Processing</h2>
+        <span class="timestamp">~22:00 – 24:00</span>
+    </div>
+    <div class="section-body">
+        <p>Training data typically from <strong>Common Crawl</strong>-style web crawls. <span class="slide-ref">Slides 33–37</span></p>
+        <h3>Data Pipeline</h3>
+        <div class="flow">
+            <div class="flow-step">Web Crawl</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Extract</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Blacklist</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Dedup</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Heuristics</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step">Model Filter</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="background: var(--success);">Clean Data</div>
+        </div>
+        <h3>Processing Stages</h3>
+        <table>
+            <thead><tr><th>Stage</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Text Extraction</strong></td><td>Remove HTML, ads, scripts</td></tr>
+                <tr><td><strong>Blacklist</strong></td><td>Filter unsafe/undesirable sites</td></tr>
+                <tr><td><strong>Deduplication</strong></td><td>Remove repeated content across URLs</td></tr>
+                <tr><td><strong>Heuristic Rules</strong></td><td>Detect low-quality (abnormal distributions, extreme lengths)</td></tr>
+                <tr><td><strong>Model-Based Filter</strong></td><td>Classifier trained on Wikipedia/books to prefer quality</td></tr>
+                <tr><td><strong>Domain Weighting</strong></td><td>Upweight code/books; downweight low-value</td></tr>
+            </tbody>
+        </table>
+        <h3>Scale <span class="slide-ref">Slide 36</span></h3>
+        <ul>
+            <li><strong>Common Crawl:</strong> ~250 billion pages</li>
+            <li><strong>SOTA models:</strong> 15–20+ trillion tokens after filtering</li>
+            <li>Curation is resource-intensive and a <strong>competitive secret</strong></li>
+            <li>Open datasets: RedPajama, The Pile, FineWeb</li>
+        </ul>
+        <div class="takeaway">
+            <strong>🔑 Key Takeaway:</strong> Data quality is paramount. Multi-stage filtering transforms noisy web data into usable corpora. The pipeline is arguably more important than architecture.
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 10 -->
+<div class="section" id="s10">
+    <div class="section-header">
+        <span class="num">10</span>
+        <h2>Scaling Laws &amp; Compute Economics</h2>
+        <span class="timestamp">~24:00 – 25:00+</span>
+    </div>
+    <div class="section-body">
+        <p><strong>Scaling laws</strong> reveal predictable power-law relationships between compute, model size, data, and loss. <span class="slide-ref">Slides 38–42</span></p>
+        <h3>Key Observations</h3>
+        <ul>
+            <li>Loss vs. compute/data/params follows <strong>log-linear</strong> trends</li>
+            <li>Enables <strong>extrapolation</strong> — predict improvement before spending resources</li>
+            <li>First formalized by <strong>Kaplan et al. (2020)</strong> at OpenAI</li>
+        </ul>
+        <h3>Chinchilla Finding (Hoffmann et al., 2022) <span class="slide-ref">Slide 40</span></h3>
+        <div class="definition">
+            <strong>Chinchilla Optimal:</strong> ~20 tokens per parameter is compute-optimal for a fixed FLOP budget.
+        </div>
+        <table>
+            <thead><tr><th>Scenario</th><th>Tokens/Param</th><th>Rationale</th></tr></thead>
+            <tbody>
+                <tr><td>Compute-optimal (Chinchilla)</td><td>~20</td><td>Minimizes loss for fixed training budget</td></tr>
+                <tr><td>Inference-optimal (LLaMA)</td><td>~150+</td><td>Smaller model trained longer → cheaper deployment</td></tr>
+            </tbody>
+        </table>
+        <h3>Cost Economics <span class="slide-ref">Slide 41</span></h3>
+        <ul>
+            <li><strong>FLOPs ≈ 6 × N × D</strong> (N=parameters, D=tokens)</li>
+            <li>Frontier runs: <strong>$50M–$100M+</strong></li>
+            <li>Each generation: ~<strong>10× more compute</strong></li>
+            <li>Significant energy &amp; carbon costs</li>
+        </ul>
+        <div class="takeaway">
+            <strong>🔑 Key Takeaway:</strong> Scaling laws let teams predict performance before training. Chinchilla showed many models were undertrained. The LLaMA approach (more tokens, smaller model) reflects deployment economics.
+        </div>
+    </div>
+</div>
+
+<!-- REVIEW -->
+<div class="section" id="review">
+    <div class="section-header" style="background: linear-gradient(90deg, var(--purple), #9333EA);">
+        <span class="num">✓</span>
+        <h2>Review &amp; Self-Test</h2>
+    </div>
+    <div class="section-body">
+        <div class="quiz">
+            <h4>Q1: What are the five components that determine LLM performance?</h4>
+            <details><summary>Reveal Answer</summary>
+            <p>Architecture, Training Loss/Algorithm, Training Data, Evaluation, and Systems/Infrastructure. Industry prioritizes data, eval, and systems.</p></details>
+        </div>
+        <div class="quiz">
+            <h4>Q2: What is the core pre-training objective?</h4>
+            <details><summary>Reveal Answer</summary>
+            <p>Next-token prediction — minimize cross-entropy loss L = −(1/L) Σ log P(xᵢ | x&lt;ᵢ), equivalent to maximizing log-likelihood.</p></details>
+        </div>
+        <div class="quiz">
+            <h4>Q3: Explain pre-training vs. post-training.</h4>
+            <details><summary>Reveal Answer</summary>
+            <p>Pre-training: self-supervised next-token prediction on web data → general language knowledge. Post-training: SFT + RLHF/DPO → aligns model to follow instructions and be helpful/harmless.</p></details>
+        </div>
+        <div class="quiz">
+            <h4>Q4: Why BPE over word-level or character-level tokenization?</h4>
+            <details><summary>Reveal Answer</summary>
+            <p>Word: huge vocab, fails on rare words. Character: very long sequences (O(L²) cost). BPE: balanced vocab (~32k–100k), manageable sequence length, handles unseen words via subword decomposition.</p></details>
+        </div>
+        <div class="quiz">
+            <h4>Q5: What does perplexity of 15 mean?</h4>
+            <details><summary>Reveal Answer</summary>
+            <p>On average, the model is as uncertain as choosing uniformly among ~15 options per token. Lower = better (1 = perfect).</p></details>
+        </div>
+        <div class="quiz">
+            <h4>Q6: What is the Chinchilla finding?</h4>
+            <details><summary>Reveal Answer</summary>
+            <p>~20 tokens/parameter is compute-optimal. Many prior models (GPT-3) were undertrained for their size. LLaMA later showed ~150 tok/param gives smaller, cheaper-to-deploy models.</p></details>
+        </div>
+        <div class="quiz">
+            <h4>Q7: How do you detect benchmark contamination?</h4>
+            <details><summary>Reveal Answer</summary>
+            <p>Compare model likelihood of test examples in original order vs. random permutation. Much higher in original order → data leaked into training.</p></details>
+        </div>
+        <div class="quiz">
+            <h4>Q8: How many FLOPs to train N parameters on D tokens?</h4>
+            <details><summary>Reveal Answer</summary>
+            <p>~6ND FLOPs. Example: 70B params × 2T tokens = ~8.4×10²³ FLOPs.</p></details>
+        </div>
+    </div>
+</div>
+
+<!-- SUMMARY -->
+<div class="section" id="summary">
+    <div class="section-header" style="background: linear-gradient(90deg, #0284C7, #0EA5E9);">
+        <span class="num">Σ</span>
+        <h2>Summary at a Glance</h2>
+    </div>
+    <div class="section-body">
+        <table>
+            <thead><tr><th>Topic</th><th>Core Concept</th><th>Key Detail</th></tr></thead>
+            <tbody>
+                <tr><td>Core Task</td><td>Next-token prediction</td><td>Autoregressive chain rule</td></tr>
+                <tr><td>Two Stages</td><td>Pre-train → Post-train</td><td>SFT + RLHF/DPO for alignment</td></tr>
+                <tr><td>Loss</td><td>Cross-entropy</td><td>= Max log-likelihood</td></tr>
+                <tr><td>Tokenization</td><td>BPE (subword)</td><td>~3–4 chars/token; 32k–128k vocab</td></tr>
+                <tr><td>Evaluation</td><td>Perplexity + Benchmarks</td><td>MMLU, HELM; contamination risk</td></tr>
+                <tr><td>Data</td><td>Web crawl → filter pipeline</td><td>15–20T tokens; quality &gt; quantity</td></tr>
+                <tr><td>Scaling</td><td>Power-law (log-linear)</td><td>~20 tok/param; 6ND FLOPs</td></tr>
+                <tr><td>Cost</td><td>Exponential growth</td><td>$50M–$100M+; 10× per generation</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</main>
+
+<footer>
+    <p>Study guide based on <a href="https://youtu.be/9vM4p9NN0Ts" target="_blank">Introduction to Building LLMs</a> — Guest Lecture by Yann Dubois · First 25 minutes</p>
+    <p>Slide references from the accompanying lecture PDF (78 slides)</p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;">Generated for study purposes.</p>
+</footer>
+
+
+
+</body></html>

@@ -1,0 +1,566 @@
+
+---
+title: "Understanding casual decoder versus prefix decoder"
+description: "How does masking of next token and directionality of masking work in different decoder architecture"
+date: 2026-08-09
+guide: true
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attention Mask Explorer</title>
+    <style>
+        :root {
+            --bg: #0F172A;
+            --card: #1E293B;
+            --text: #E2E8F0;
+            --muted: #94A3B8;
+            --border: #334155;
+            --primary: #60A5FA;
+            --accent: #FBBF24;
+            --success: #34D399;
+            --can-attend: #3B82F6;
+            --cannot-attend: #475569;
+            --prefix: #22C55E;
+            --decoder-gen: #F59E0B;
+            --encoder: #3B82F6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--primary); }
+        .subtitle { color: var(--muted); margin-bottom: 2rem; }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+        .control-group {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem 1.5rem;
+        }
+        .control-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+        select, input {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+        select { cursor: pointer; }
+
+        .main-area {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        /* Matrix */
+        .matrix-container {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            display: inline-block;
+        }
+        .matrix-label {
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+        }
+        .matrix-label.left {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            position: absolute;
+            left: -2rem;
+            top: 50%;
+            transform: rotate(180deg) translateX(50%);
+        }
+        .matrix-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .axis-label {
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--muted);
+            font-weight: 600;
+            padding: 0.5rem 0;
+        }
+        .axis-label.y-axis {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            padding: 0 0.5rem;
+        }
+        .matrix-grid {
+            display: grid;
+            gap: 3px;
+        }
+        .cell {
+            width: 44px;
+            height: 44px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .cell.can-attend {
+            background: var(--can-attend);
+            color: white;
+        }
+        .cell.cannot-attend {
+            background: var(--cannot-attend);
+            color: #94A3B8;
+        }
+        .cell.prefix-attend {
+            background: var(--prefix);
+            color: white;
+        }
+        .cell.decoder-attend {
+            background: var(--decoder-gen);
+            color: #1a1a1a;
+        }
+        .cell:hover {
+            transform: scale(1.15);
+            z-index: 10;
+            box-shadow: 0 0 12px rgba(96,165,250,0.4);
+        }
+        .cell.highlighted {
+            outline: 3px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* Token labels */
+        .token-labels {
+            display: grid;
+            gap: 3px;
+        }
+        .token-label {
+            height: 44px;
+            display: flex;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--muted);
+            padding: 0 0.5rem;
+            white-space: nowrap;
+        }
+        .token-label.col {
+            width: 44px;
+            justify-content: center;
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            height: auto;
+            padding: 0.5rem 0;
+        }
+
+        /* Info panel */
+        .info-panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 400px;
+        }
+        .info-panel h3 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        .info-panel p {
+            margin-bottom: 0.8rem;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        .info-panel .explanation {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .info-panel .explanation h4 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .legend {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+        }
+        .legend-swatch {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+        }
+
+        .hover-info {
+            background: rgba(251,191,36,0.1);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            min-height: 60px;
+        }
+        .hover-info .token-pair {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 0.3rem;
+        }
+        .hover-info .verdict {
+            font-size: 0.95rem;
+        }
+        .hover-info .verdict.yes { color: var(--success); }
+        .hover-info .verdict.no { color: #F87171; }
+
+        @media (max-width: 900px) {
+            .main-area { grid-template-columns: 1fr; }
+            .cell { width: 36px; height: 36px; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🔍 Attention Mask Explorer</h1>
+<p class="subtitle">Hover over cells to understand what each token can "see." Click an architecture to compare.</p>
+
+<div class="controls">
+    <div class="control-group">
+        <label>Architecture</label>
+        <select id="arch-select">
+            <option value="causal">Causal Decoder (GPT, LLaMA)</option>
+            <option value="prefix">Prefix Decoder (PaLM-style)</option>
+            <option value="encoder-decoder">Encoder-Decoder (T5, BART)</option>
+        </select>
+    </div>
+    <div class="control-group">
+        <label>Sentence</label>
+        <select id="sentence-select">
+            <option value="default">A Survey of Large Language Models</option>
+            <option value="short">The cat sat</option>
+            <option value="custom">Custom...</option>
+        </select>
+    </div>
+    <div class="control-group" id="prefix-control" style="display:none;">
+        <label>Prefix Length</label>
+        <input type="range" id="prefix-length" min="1" max="5" value="3">
+        <span id="prefix-value">3</span>
+    </div>
+    <div class="control-group" id="custom-input-group" style="display:none;">
+        <label>Custom Tokens (comma-separated)</label>
+        <input type="text" id="custom-input" placeholder="Hello, world, how, are, you" style="width:250px;">
+    </div>
+</div>
+
+<div class="main-area">
+    <div class="matrix-container">
+        <div class="axis-label" id="x-axis-label">Keys (what tokens can be seen)</div>
+        <div style="display:flex; align-items:stretch;">
+            <div class="axis-label y-axis" id="y-axis-label">Queries (token being processed)</div>
+            <div>
+                <div id="col-labels" style="display:flex; gap:3px; margin-left:0; padding-left:0;"></div>
+                <div id="matrix" class="matrix-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <h3 id="arch-title">Causal Decoder</h3>
+        <div id="arch-description"></div>
+        
+        <div class="legend" id="legend"></div>
+
+        <div class="hover-info" id="hover-info">
+            <p style="color:var(--muted); font-size:0.9rem;">👆 Hover over a cell to see the attention relationship</p>
+        </div>
+
+        <div class="explanation">
+            <h4>How to Read This Matrix</h4>
+            <p style="font-size:0.85rem; margin:0;">
+                • Each <strong>row</strong> = a token being processed (query)<br>
+                • Each <strong>column</strong> = a token it might attend to (key)<br>
+                • <strong>Colored</strong> = ✅ attention flows (can see)<br>
+                • <strong>Grey</strong> = ❌ masked (cannot see)<br><br>
+                Row for token X shows everything X can "look at" when computing its representation.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+const sentences = {
+    default: ["A", "Survey", "of", "Large", "Language", "Models"],
+    short: ["The", "cat", "sat"],
+};
+
+let currentArch = 'causal';
+let currentTokens = [...sentences.default];
+let prefixLen = 3;
+
+const archInfo = {
+    causal: {
+        title: "Causal Decoder (GPT, LLaMA, Mistral)",
+        description: `<p>Each token can only attend to <strong>itself and previous tokens</strong> (left-to-right). This creates a lower-triangular attention mask.</p>
+        <p><strong>Why?</strong> During generation, future tokens don't exist yet — the model must predict the next token using only what came before.</p>
+        <p><strong>Used by:</strong> GPT-2/3/4, LLaMA, Mistral, Claude, most modern LLMs.</p>`,
+        legend: [
+            { color: '#3B82F6', label: 'Can attend (past + self)' },
+            { color: '#475569', label: 'Masked (future tokens)' },
+        ]
+    },
+    prefix: {
+        title: "Prefix Decoder (PaLM, GLM)",
+        description: `<p>The first N tokens form a <strong>prefix</strong> — they can attend to each other freely (bidirectional, like an encoder). The remaining tokens use <strong>causal masking</strong>.</p>
+        <p><strong>Why?</strong> Useful when you have a "context" (e.g., a document or instruction) that benefits from bidirectional attention, followed by generation that must be left-to-right.</p>
+        <p><strong>Used by:</strong> PaLM (partially), GLM, some instruction-tuned models.</p>`,
+        legend: [
+            { color: '#22C55E', label: 'Prefix (bidirectional)' },
+            { color: '#3B82F6', label: 'Causal (past + self)' },
+            { color: '#475569', label: 'Masked' },
+        ]
+    },
+    'encoder-decoder': {
+        title: "Encoder-Decoder (T5, BART, Flan-T5)",
+        description: `<p>Two separate parts:<br>• <strong>Encoder:</strong> Processes input with full bidirectional attention (every token sees every other token)<br>• <strong>Decoder:</strong> Generates output causally, but can also attend to ALL encoder tokens (cross-attention).</p>
+        <p><strong>Why?</strong> The encoder builds a rich representation of the input; the decoder uses it while generating left-to-right.</p>
+        <p><strong>Used by:</strong> T5, BART, Flan-T5, mBART, NLLB.</p>`,
+        legend: [
+            { color: '#3B82F6', label: 'Encoder (full bidirectional)' },
+            { color: '#F59E0B', label: 'Decoder (causal + cross-attn)' },
+            { color: '#475569', label: 'Masked' },
+        ]
+    }
+};
+
+function getAttentionMask(arch, tokens, row, col) {
+    const n = tokens.length;
+    if (arch === 'causal') {
+        return col <= row ? 'can-attend' : 'cannot-attend';
+    } else if (arch === 'prefix') {
+        // First prefixLen tokens can see each other; rest is causal
+        if (row < prefixLen && col < prefixLen) return 'prefix-attend';
+        if (row >= prefixLen && col <= row) return 'can-attend';
+        if (row >= prefixLen && col < prefixLen) return 'prefix-attend';
+        return 'cannot-attend';
+    } else { // encoder-decoder
+        const encoderLen = prefixLen;
+        if (row < encoderLen) {
+            // Encoder: full attention within encoder
+            if (col < encoderLen) return 'can-attend';
+            return 'cannot-attend';
+        } else {
+            // Decoder: can see all encoder + causal within decoder
+            if (col < encoderLen) return 'decoder-attend';
+            if (col <= row) return 'decoder-attend';
+            return 'cannot-attend';
+        }
+    }
+}
+
+function renderMatrix() {
+    const n = currentTokens.length;
+    const matrix = document.getElementById('matrix');
+    const colLabels = document.getElementById('col-labels');
+    
+    matrix.style.gridTemplateColumns = `repeat(${n}, 44px)`;
+    matrix.innerHTML = '';
+    colLabels.innerHTML = '';
+
+    // Column labels
+    currentTokens.forEach((t, i) => {
+        const lbl = document.createElement('div');
+        lbl.className = 'token-label col';
+        lbl.textContent = t;
+        lbl.style.width = '44px';
+        colLabels.appendChild(lbl);
+    });
+
+    // Matrix cells (row 0 = first token at top)
+    for (let row = 0; row < n; row++) {
+        for (let col = 0; col < n; col++) {
+            const cell = document.createElement('div');
+            const maskClass = getAttentionMask(currentArch, currentTokens, row, col);
+            cell.className = `cell ${maskClass}`;
+            cell.dataset.row = row;
+            cell.dataset.col = col;
+            
+            // Show token initial
+            if (maskClass !== 'cannot-attend') {
+                cell.textContent = currentTokens[col].charAt(0);
+            }
+
+            cell.addEventListener('mouseenter', () => showHoverInfo(row, col, maskClass));
+            cell.addEventListener('mouseleave', clearHoverInfo);
+            matrix.appendChild(cell);
+        }
+    }
+
+    // Update info panel
+    const info = archInfo[currentArch];
+    document.getElementById('arch-title').textContent = info.title;
+    document.getElementById('arch-description').innerHTML = info.description;
+    
+    const legend = document.getElementById('legend');
+    legend.innerHTML = info.legend.map(l => 
+        `<div class="legend-item"><div class="legend-swatch" style="background:${l.color}"></div>${l.label}</div>`
+    ).join('');
+
+    // Axis labels
+    if (currentArch === 'encoder-decoder') {
+        document.getElementById('x-axis-label').textContent = 'Keys: Encoder tokens | Decoder tokens';
+        document.getElementById('y-axis-label').textContent = 'Queries: Encoder | Decoder';
+    } else {
+        document.getElementById('x-axis-label').textContent = 'Keys (tokens that can be attended to →)';
+        document.getElementById('y-axis-label').textContent = 'Queries (token being processed ↓)';
+    }
+}
+
+function showHoverInfo(row, col, maskClass) {
+    const info = document.getElementById('hover-info');
+    const queryToken = currentTokens[row];
+    const keyToken = currentTokens[col];
+    const canAttend = maskClass !== 'cannot-attend';
+    
+    let reason = '';
+    if (currentArch === 'causal') {
+        if (canAttend) {
+            reason = col === row ? `"${queryToken}" can attend to itself (always allowed).` :
+                `"${queryToken}" (position ${row}) can see "${keyToken}" (position ${col}) because it came earlier.`;
+        } else {
+            reason = `"${queryToken}" (position ${row}) CANNOT see "${keyToken}" (position ${col}) — it's a future token that doesn't exist yet during generation.`;
+        }
+    } else if (currentArch === 'prefix') {
+        if (row < prefixLen && col < prefixLen) {
+            reason = `Both tokens are in the prefix — full bidirectional attention allowed.`;
+        } else if (canAttend && col < prefixLen) {
+            reason = `"${queryToken}" can see prefix token "${keyToken}" — prefix is always visible.`;
+        } else if (canAttend) {
+            reason = `"${queryToken}" can see "${keyToken}" — it came earlier (causal region).`;
+        } else {
+            reason = `"${queryToken}" CANNOT see "${keyToken}" — it's a future token in the causal region.`;
+        }
+    } else {
+        if (row < prefixLen && col < prefixLen) {
+            reason = `Encoder: "${queryToken}" sees all other encoder tokens (bidirectional).`;
+        } else if (row < prefixLen) {
+            reason = `Encoder tokens cannot see decoder tokens.`;
+        } else if (col < prefixLen) {
+            reason = `Decoder "${queryToken}" can see encoder token "${keyToken}" via cross-attention.`;
+        } else if (canAttend) {
+            reason = `Decoder "${queryToken}" can see past decoder token "${keyToken}" (causal).`;
+        } else {
+            reason = `Decoder "${queryToken}" CANNOT see future decoder token "${keyToken}".`;
+        }
+    }
+
+    info.innerHTML = `
+        <div class="token-pair">"${queryToken}" → "${keyToken}"</div>
+        <div class="verdict ${canAttend ? 'yes' : 'no'}">
+            ${canAttend ? '✅ CAN attend' : '❌ CANNOT attend (masked)'}
+        </div>
+        <p style="font-size:0.85rem; margin-top:0.5rem; color:var(--muted);">${reason}</p>
+    `;
+
+    // Highlight row and column
+    document.querySelectorAll('.cell').forEach(c => {
+        if (parseInt(c.dataset.row) === row || parseInt(c.dataset.col) === col) {
+            c.classList.add('highlighted');
+        }
+    });
+}
+
+function clearHoverInfo() {
+    document.querySelectorAll('.cell').forEach(c => c.classList.remove('highlighted'));
+}
+
+// Event listeners
+document.getElementById('arch-select').addEventListener('change', (e) => {
+    currentArch = e.target.value;
+    document.getElementById('prefix-control').style.display = 
+        (currentArch === 'prefix' || currentArch === 'encoder-decoder') ? 'block' : 'none';
+    
+    // Adjust prefix slider max
+    const slider = document.getElementById('prefix-length');
+    slider.max = currentTokens.length - 1;
+    if (prefixLen >= currentTokens.length) {
+        prefixLen = Math.floor(currentTokens.length / 2);
+        slider.value = prefixLen;
+        document.getElementById('prefix-value').textContent = prefixLen;
+    }
+    renderMatrix();
+});
+
+document.getElementById('sentence-select').addEventListener('change', (e) => {
+    const val = e.target.value;
+    document.getElementById('custom-input-group').style.display = val === 'custom' ? 'block' : 'none';
+    if (val !== 'custom') {
+        currentTokens = [...sentences[val]];
+        const slider = document.getElementById('prefix-length');
+        slider.max = currentTokens.length - 1;
+        prefixLen = Math.min(prefixLen, currentTokens.length - 1);
+        slider.value = prefixLen;
+        document.getElementById('prefix-value').textContent = prefixLen;
+        renderMatrix();
+    }
+});
+
+document.getElementById('custom-input').addEventListener('input', (e) => {
+    const tokens = e.target.value.split(',').map(t => t.trim()).filter(t => t);
+    if (tokens.length >= 2) {
+        currentTokens = tokens;
+        const slider = document.getElementById('prefix-length');
+        slider.max = currentTokens.length - 1;
+        prefixLen = Math.min(prefixLen, currentTokens.length - 1);
+        slider.value = prefixLen;
+        document.getElementById('prefix-value').textContent = prefixLen;
+        renderMatrix();
+    }
+});
+
+document.getElementById('prefix-length').addEventListener('input', (e) => {
+    prefixLen = parseInt(e.target.value);
+    document.getElementById('prefix-value').textContent = prefixLen;
+    renderMatrix();
+});
+
+// Initial render
+renderMatrix();
+</script>
+
+</body>
+</html>
