@@ -1,0 +1,394 @@
+---
+title: "Encoder–Decoder vs Decoder-only"
+description: "Build intuition for the two transformer layouts by seeing exactly which words each word is allowed to look at."
+date: 2026-08-13
+guide: true
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Encoder–Decoder vs Decoder-only</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #171a22;
+    --card-2: #1e222c;
+    --text: #e7e3d8;
+    --muted: #9a9485;
+    --border: #2a2f3a;
+    --accent: #d6a066;
+    --enc: #7ab8f5;      /* input / bidirectional */
+    --dec: #e8a24a;      /* output / causal */
+    --look: #57c98a;     /* "can look at this" */
+    --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-serif);
+    font-size: 17px; line-height: 1.6; padding: 2.5rem 1.25rem 6rem; -webkit-font-smoothing: antialiased; }
+  main { max-width: 50rem; margin: 0 auto; }
+  a { color: var(--enc); }
+
+  .kicker { font-family: var(--font-sans); font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.6rem; }
+  h1 { font-size: 2.1rem; line-height: 1.15; margin: 0 0 0.6rem; letter-spacing: -0.01em; }
+  h2 { font-size: 1.4rem; margin: 2.4rem 0 0.4rem; letter-spacing: -0.005em; }
+  .lede { color: var(--muted); font-size: 1.05rem; margin: 0 0 1.5rem; }
+  p { margin: 0.7rem 0; }
+  .muted { color: var(--muted); }
+  code { font-family: var(--font-mono); font-size: 0.88em; background: var(--card-2);
+    padding: 0.08rem 0.35rem; border-radius: 4px; }
+
+  /* analogy cards */
+  .analogy { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.2rem 0; }
+  @media (max-width: 640px) { .analogy { grid-template-columns: 1fr; } }
+  .acard { border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; background: var(--card); }
+  .acard.encT { border-top: 3px solid var(--enc); }
+  .acard.decT { border-top: 3px solid var(--dec); }
+  .acard h3 { font-family: var(--font-sans); font-size: 0.95rem; margin: 0 0 0.3rem; }
+  .acard.encT h3 { color: var(--enc); } .acard.decT h3 { color: var(--dec); }
+  .acard .tag { font-family: var(--font-sans); font-size: 0.7rem; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted); }
+  .acard p { font-size: 0.95rem; margin: 0.5rem 0 0; }
+
+  /* panel */
+  .panel { background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem; margin: 1.25rem 0; }
+  .panel h3 { font-family: var(--font-sans); font-size: 0.78rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.5rem; }
+
+  /* mode toggle */
+  .modebar { display: flex; gap: 0.5rem; margin: 0.4rem 0 1.2rem; }
+  .modebar button { flex: 1; font-family: var(--font-sans); font-size: 0.92rem; cursor: pointer;
+    background: var(--card-2); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.6rem 0.8rem; transition: all 120ms; }
+  .modebar button:hover { color: var(--text); border-color: var(--accent); }
+  .modebar button.active.enc { background: var(--enc); color: #0d1420; border-color: var(--enc); font-weight: 700; }
+  .modebar button.active.dec { background: var(--dec); color: #241703; border-color: var(--dec); font-weight: 700; }
+  .modebar button small { display: block; font-size: 0.7rem; font-weight: 400; opacity: 0.8; }
+
+  .rowlabel { font-family: var(--font-sans); font-size: 0.72rem; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--muted); margin: 0.9rem 0 0.4rem; display: flex; gap: 0.5rem; align-items: center; }
+  .rowlabel .badge { font-size: 0.64rem; padding: 0.1rem 0.4rem; border-radius: 999px; border: 1px solid var(--border); }
+  .rowlabel.enc .badge { color: var(--enc); border-color: var(--enc); }
+  .rowlabel.dec .badge { color: var(--dec); border-color: var(--dec); }
+
+  .words { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .w { font-family: var(--font-mono); font-size: 0.92rem; padding: 0.4rem 0.6rem; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--card-2); cursor: pointer;
+    transition: all 130ms; position: relative; user-select: none; }
+  .w.enc { border-color: rgba(122,184,245,0.4); }
+  .w.dec { border-color: rgba(232,162,74,0.4); }
+  .w:hover { transform: translateY(-1px); border-color: var(--accent); }
+  .w.future { opacity: 0.3; font-style: italic; }
+  .w.selected { outline: 2px solid var(--accent); background: #2a2118; }
+  .w.canlook { background: rgba(87,201,138,0.22); border-color: var(--look); box-shadow: 0 0 0 1px rgba(87,201,138,0.35) inset; }
+  .w.cantlook { opacity: 0.28; }
+  .w .eye { position: absolute; top: -9px; right: -6px; font-size: 0.7rem; }
+
+  .divider { align-self: center; font-family: var(--font-sans); font-size: 0.66rem;
+    color: var(--muted); border-left: 1px dashed var(--border); padding-left: 0.4rem; margin-left: 0.1rem; }
+
+  /* cross-attention "peek at input" box */
+  .peekbox { margin-top: 0.8rem; border: 1px dashed var(--border); border-radius: 10px;
+    padding: 0.7rem 0.9rem; font-family: var(--font-sans); font-size: 0.82rem; color: var(--muted);
+    transition: all 150ms; }
+  .peekbox.lit { border-color: var(--look); background: rgba(87,201,138,0.1); color: var(--text); }
+  .peekbox b { color: var(--look); }
+
+  .explain { margin-top: 1rem; border-left: 3px solid var(--accent);
+    padding: 0.5rem 0 0.5rem 0.9rem; font-size: 0.98rem; min-height: 2.6rem; }
+  .explain b { color: var(--accent); }
+  .hintline { font-family: var(--font-sans); font-size: 0.8rem; color: var(--muted); margin-top: 0.9rem; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 1rem; font-family: var(--font-sans);
+    font-size: 0.72rem; color: var(--muted); margin-top: 0.9rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .sw { width: 13px; height: 13px; border-radius: 3px; display: inline-block; border: 1px solid var(--border); }
+
+  /* comparison */
+  table.cmp { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: 0.88rem; }
+  table.cmp th, table.cmp td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.cmp thead th { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  table.cmp td.enc { color: var(--enc); } table.cmp td.dec { color: var(--dec); }
+  table.cmp tr td:first-child { color: var(--text); font-weight: 600; }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--card);
+    padding: 0.8rem 1rem; border-radius: 0 8px 8px 0; margin: 1.2rem 0; }
+  .discuss { border: 1px dashed var(--accent); border-radius: 10px; padding: 0.9rem 1.1rem;
+    margin: 1.3rem 0; background: rgba(214,160,102,0.06); }
+  .discuss h4 { font-family: var(--font-sans); font-size: 0.74rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.5rem; }
+  .discuss ul { margin: 0; padding-left: 1.2rem; } .discuss li { margin: 0.35rem 0; }
+
+  .homelink { font-family: var(--font-sans); font-size: 0.8rem; }
+  footer { margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid var(--border);
+    font-family: var(--font-sans); font-size: 0.75rem; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <p class="homelink"><a href="{{ '/' | relative_url }}">&larr; All guides</a></p>
+  <p class="kicker">Architecture explainer</p>
+  <h1>Encoder–Decoder vs Decoder-only</h1>
+  <p class="lede">Both are made of the same part: self-attention. The only real difference is <b>which words each word is allowed to look at</b>. Let's see that directly.</p>
+
+  <h2>First, the intuition</h2>
+  <div class="analogy">
+    <div class="acard encT">
+      <span class="tag">Encoder–Decoder</span>
+      <h3>Like a translator</h3>
+      <p>First they <b>read the whole English sentence</b> — eyes darting back and forth, taking it all in. <i>Then</i> they <b>write the French</b>, one word at a time, glancing back at the original whenever they need to.</p>
+    </div>
+    <div class="acard decT">
+      <span class="tag">Decoder-only</span>
+      <h3>Like continuing a story</h3>
+      <p>There's just <b>one line of text</b>. You read it left to right and keep <b>writing the next word</b>. The &ldquo;input&rdquo; isn't separate — it's simply the words that came first.</p>
+    </div>
+  </div>
+  <p class="muted" style="font-size:0.95rem;">The interactive below makes this concrete. Keep the analogy in mind: <b style="color:var(--enc)">read-then-write with two separate parts</b> vs. <b style="color:var(--dec)">one continuous stream</b>.</p>
+
+  <h2>See it: what can each word look at?</h2>
+  <p class="muted" style="font-size:0.92rem;margin-top:0.2rem;">Pick a layout, then <b>click any word</b>. Green = &ldquo;this word is allowed to look here.&rdquo; That &ldquo;looking&rdquo; is attention — it's how a word pulls in context.</p>
+
+  <div class="panel">
+    <div class="modebar" id="modebar">
+      <button data-mode="encdec" class="enc">Encoder–Decoder<small>translator: read, then write</small></button>
+      <button data-mode="deconly" class="dec">Decoder-only<small>one stream: keep writing</small></button>
+    </div>
+
+    <div id="encRow">
+      <div class="rowlabel enc"><span class="badge">reads both ways ◀▶</span> <span id="encRowText">English input · handled by the encoder</span></div>
+      <div class="words" id="inputWords"></div>
+    </div>
+
+    <div class="rowlabel dec" id="outRowLabel"><span class="badge" id="outBadge">writes left to right ◀</span> <span id="outRowText">French output · handled by the decoder</span></div>
+    <div class="words" id="outputWords"></div>
+
+    <div class="peekbox" id="peekBox">When writing a French word, the decoder can also <b>peek at the entire English input</b> (this is called <b>cross-attention</b>). Click a French word to see it light up.</div>
+
+    <div class="explain" id="explain">Click a word above to see exactly what it can and can't look at.</div>
+
+    <div class="legend">
+      <span><i class="sw" style="background:#2a2118;outline:2px solid var(--accent)"></i> the word you clicked</span>
+      <span><i class="sw" style="background:rgba(87,201,138,0.4);border-color:var(--look)"></i> it can look here</span>
+      <span><i class="sw" style="opacity:0.3"></i> it can't look here</span>
+    </div>
+    <p class="hintline" id="hintLine"></p>
+  </div>
+
+  <h2>So why does it matter?</h2>
+  <div class="analogy">
+    <div class="acard encT">
+      <span class="tag">Encoder–Decoder shines when…</span>
+      <h3>you transform A into B</h3>
+      <p>Translation, summarization. Reading the <b>whole</b> input both ways first gives a complete understanding before a single output word is written. Input and output stay cleanly separate.</p>
+    </div>
+    <div class="acard decT">
+      <span class="tag">Decoder-only shines when…</span>
+      <h3>you continue open-ended text</h3>
+      <p>Chat, autocomplete, few-shot prompting. One simple stack, one rule (&ldquo;predict the next word&rdquo;) — and it turns out you can phrase translation and summarizing as text too, which is why most modern LLMs are this kind.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Side by side</h3>
+    <table class="cmp">
+      <thead><tr><th>&nbsp;</th><th style="color:var(--enc)">Encoder–Decoder</th><th style="color:var(--dec)">Decoder-only</th></tr></thead>
+      <tbody>
+        <tr><td>How input is read</td><td class="enc">Both directions, all at once</td><td class="dec">Left to right only</td></tr>
+        <tr><td>Input &amp; output</td><td class="enc">Two separate parts</td><td class="dec">One combined stream</td></tr>
+        <tr><td>&ldquo;Peek at input&rdquo;</td><td class="enc">Cross-attention</td><td class="dec">Just earlier words in the stream</td></tr>
+        <tr><td>Best at</td><td class="enc">Translate / summarize (A&rarr;B)</td><td class="dec">Chat / continue text</td></tr>
+        <tr><td>Examples</td><td class="enc">Transformer (2017), T5, BART</td><td class="dec">GPT, LLaMA, Mistral, Gemma</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">The big takeaway: it's the <b>same self-attention block</b> either way. Encoder–decoder lets the input look both ways and adds a &ldquo;peek back&rdquo; bridge; decoder-only keeps everything in one left-to-right line. That's the whole difference.</div>
+
+  <div class="discuss">
+    <h4>Lead the discussion</h4>
+    <ul>
+      <li>Why is it fine for the <i>input</i> to look both ways, but the <i>output</i> must only look left? (Hint: what would &ldquo;looking right&rdquo; mean when you're generating?)</li>
+      <li>A decoder-only model translates by putting the English right in the prompt. Compared to a real encoder, what might it be worse at — and why?</li>
+      <li>&ldquo;Cross-attention&rdquo; is the decoder peeking at the encoder. In a decoder-only model, what does that job instead?</li>
+    </ul>
+  </div>
+
+  <p class="muted" style="font-size:0.9rem;">Want the exact mask matrices behind &ldquo;look left only&rdquo;? See the <a href="{{ '/attention-mask-explorer.html' | relative_url }}">Attention Mask Explorer</a>.</p>
+
+  <footer>Mumtaz Fatima · Created w Claude · Hosted on GitHub Pages</footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var mode = "encdec";
+  var INPUT = ["The", "cat", "sat"];
+  var OUTPUT = ["Le", "chat", "s'est", "assis"];
+  var PROMPT = ["Translate", ":", "The", "cat", "sat", "\u2192"];
+
+  var modebar = document.getElementById("modebar");
+  var inputWords = document.getElementById("inputWords");
+  var outputWords = document.getElementById("outputWords");
+  var encRow = document.getElementById("encRow");
+  var outRowLabel = document.getElementById("outRowLabel");
+  var outRowText = document.getElementById("outRowText");
+  var outBadge = document.getElementById("outBadge");
+  var peekBox = document.getElementById("peekBox");
+  var explain = document.getElementById("explain");
+  var hintLine = document.getElementById("hintLine");
+
+  // selection: {group:'in'|'out'|'stream', idx:n} or null
+  var sel = null;
+
+  function build() {
+    inputWords.innerHTML = "";
+    outputWords.innerHTML = "";
+    if (mode === "encdec") {
+      encRow.style.display = "";
+      peekBox.style.display = "";
+      outRowText.textContent = "French output · handled by the decoder";
+      outBadge.textContent = "writes left to right \u25C0";
+      INPUT.forEach(function (w, i) { inputWords.appendChild(mkWord(w, "enc", "in", i)); });
+      OUTPUT.forEach(function (w, i) { outputWords.appendChild(mkWord(w, "dec", "out", i)); });
+    } else {
+      encRow.style.display = "none";
+      peekBox.style.display = "none";
+      outRowText.textContent = "One stream: the prompt and the generated words live on the same line";
+      outBadge.textContent = "everything looks left \u25C0";
+      // prompt chips (blue) then generated chips (amber), with a divider
+      PROMPT.forEach(function (w, i) { outputWords.appendChild(mkWord(w, "enc", "stream", i)); });
+      var div = document.createElement("span");
+      div.className = "divider"; div.textContent = "↑ prompt · generated ↓";
+      outputWords.appendChild(div);
+      OUTPUT.forEach(function (w, i) { outputWords.appendChild(mkWord(w, "dec", "stream", PROMPT.length + i)); });
+    }
+    applySelection();
+  }
+
+  function mkWord(text, color, group, idx) {
+    var el = document.createElement("span");
+    el.className = "w " + color;
+    el.textContent = text;
+    el.dataset.group = group;
+    el.dataset.idx = idx;
+    el.addEventListener("click", function () {
+      sel = { group: group, idx: idx };
+      applySelection();
+    });
+    return el;
+  }
+
+  function streamLen() { return PROMPT.length + OUTPUT.length; }
+
+  function applySelection() {
+    // clear
+    Array.prototype.forEach.call(document.querySelectorAll(".w"), function (el) {
+      el.classList.remove("selected", "canlook", "cantlook", "future");
+      var eye = el.querySelector(".eye"); if (eye) eye.remove();
+    });
+    peekBox.classList.remove("lit");
+
+    if (!sel) {
+      explain.innerHTML = "Click a word above to see exactly what it can and can't look at.";
+      setHint();
+      return;
+    }
+
+    if (mode === "encdec") {
+      applyEncDec();
+    } else {
+      applyDecOnly();
+    }
+    setHint();
+  }
+
+  function markSelected(group, idx) {
+    var el = document.querySelector('.w[data-group="' + group + '"][data-idx="' + idx + '"]');
+    if (el) {
+      el.classList.add("selected");
+      var eye = document.createElement("span"); eye.className = "eye"; eye.textContent = "\uD83D\uDC41\uFE0F";
+      el.appendChild(eye);
+    }
+    return el;
+  }
+
+  function applyEncDec() {
+    var word;
+    if (sel.group === "in") {
+      // input word: encoder, bidirectional -> can look at ALL input words
+      word = INPUT[sel.idx];
+      markSelected("in", sel.idx);
+      INPUT.forEach(function (_, i) {
+        if (i !== sel.idx) document.querySelector('.w[data-group="in"][data-idx="' + i + '"]').classList.add("canlook");
+      });
+      // output words are not looked at by encoder; dim them
+      OUTPUT.forEach(function (_, i) { document.querySelector('.w[data-group="out"][data-idx="' + i + '"]').classList.add("cantlook"); });
+      explain.innerHTML = "&ldquo;<b>" + esc(word) + "</b>&rdquo; is an <b style='color:var(--enc)'>input</b> word, read by the <b>encoder</b>. It looks at <b>every other input word — both before and after it</b> (that's &ldquo;bidirectional&rdquo;). Reading both ways is how the encoder fully understands the sentence before any output is written.";
+    } else {
+      // output word: decoder. causal over OUTPUT (only earlier + itself) + cross-attention to ALL input
+      word = OUTPUT[sel.idx];
+      markSelected("out", sel.idx);
+      OUTPUT.forEach(function (_, i) {
+        var el = document.querySelector('.w[data-group="out"][data-idx="' + i + '"]');
+        if (i < sel.idx) el.classList.add("canlook");
+        else if (i > sel.idx) el.classList.add("cantlook", "future");
+      });
+      // cross-attention: whole input lights up
+      INPUT.forEach(function (_, i) { document.querySelector('.w[data-group="in"][data-idx="' + i + '"]').classList.add("canlook"); });
+      peekBox.classList.add("lit");
+      var earlier = sel.idx === 0 ? "no French words yet (it's the first one)" : "the " + sel.idx + " French word" + (sel.idx > 1 ? "s" : "") + " already written";
+      explain.innerHTML = "&ldquo;<b>" + esc(word) + "</b>&rdquo; is an <b style='color:var(--dec)'>output</b> word, written by the <b>decoder</b>. It can look at " + earlier + " (never at words to its right — those don't exist yet), <b>and</b> at the <b style='color:var(--look)'>entire English input</b> via <b>cross-attention</b>.";
+    }
+  }
+
+  function applyDecOnly() {
+    // one stream, causal: can look at itself + everything to its left
+    var i = sel.idx, allWords = PROMPT.concat(OUTPUT);
+    markSelected("stream", i);
+    for (var k = 0; k < streamLen(); k++) {
+      if (k === i) continue;
+      var el = document.querySelector('.w[data-group="stream"][data-idx="' + k + '"]');
+      if (k < i) el.classList.add("canlook");
+      else el.classList.add("cantlook", "future");
+    }
+    var word = allWords[i];
+    var isPrompt = i < PROMPT.length;
+    var leftCount = i;
+    explain.innerHTML = "&ldquo;<b>" + esc(word) + "</b>&rdquo; is just position " + (i + 1) + " in <b>one single stream</b>" + (isPrompt ? " (still inside the prompt)" : " (a generated word)") + ". It looks at <b>every word to its left</b> — " + (leftCount === 0 ? "there are none, so it looks only at itself" : "all " + leftCount + " of them") + " — whether that's the instruction, the English, or French already written. <b>No separate input, no peeking ahead.</b>";
+  }
+
+  function setHint() {
+    if (mode === "encdec") {
+      hintLine.innerHTML = "Try it: click an <b style='color:var(--enc)'>English</b> word (it looks both ways) then a <b style='color:var(--dec)'>French</b> word (looks left + peeks at all English).";
+    } else {
+      hintLine.innerHTML = "Try it: click the first word, then the last. Notice every word only ever looks <b>left</b> — the prompt and the output obey the same rule.";
+    }
+  }
+
+  function esc(s) { return String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  Array.prototype.forEach.call(modebar.children, function (b) {
+    b.addEventListener("click", function () {
+      mode = b.dataset.mode;
+      Array.prototype.forEach.call(modebar.children, function (x) {
+        x.classList.toggle("active", x === b);
+      });
+      sel = null;
+      build();
+    });
+  });
+
+  modebar.children[0].classList.add("active");
+  build();
+})();
+</script>
+</body>
+</html>
