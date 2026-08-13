@@ -105,6 +105,24 @@ guide: true
 
   .budget .fill { background: var(--purple); }
 
+  /* total spend card */
+  .spend { background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 12px; padding: 1rem; }
+  .spend h3 { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 0 0 0.4rem; }
+  .spend-num { font-family: var(--mono); font-size: 1.6rem; font-weight: 700; color: var(--green); }
+  .spend-hint { font-size: 0.72rem; color: var(--fg-dim); margin-top: 0.3rem; }
+
+  /* per-choice cost editor */
+  .costrow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    margin: 0.7rem 0 0.2rem; padding: 0.7rem 0.9rem; background: var(--bg-elev-2);
+    border: 1px solid var(--border); border-radius: 8px; }
+  .costrow label { font-size: 0.85rem; color: var(--fg); font-weight: 600; }
+  .costrow .dollar { display: inline-flex; align-items: center; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 7px; padding: 0.1rem 0.5rem; }
+  .costrow .dollar span { color: var(--fg-muted); font-family: var(--mono); }
+  .costrow input { width: 8.5rem; background: transparent; border: none; outline: none;
+    color: #fff; font-family: var(--mono); font-size: 0.95rem; padding: 0.35rem 0.2rem; }
+  .costrow .cn { flex-basis: 100%; font-size: 0.76rem; color: var(--fg-dim); }
+
   /* report card */
   .report { background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 12px; padding: 1.2rem; }
   .report h2 { margin: 0 0 0.3rem; color: #fff; font-size: 1.3rem; }
@@ -128,7 +146,7 @@ guide: true
   <header class="top">
     <div class="kick">Decision Simulator</div>
     <h1>Train an LLM</h1>
-    <p>You're the ML engineer. Make one call at each stage of the pre-training pipeline. Every choice trades off <b>capability</b>, training <b>stability</b>, and your <b>compute budget</b>. Get it to the finish line with a base model worth building on.</p>
+    <p>You're the ML engineer. Make one call at each stage of the pre-training pipeline. Every choice trades off <b>capability</b>, training <b>stability</b>, and your <b>compute budget</b> &mdash; and carries a real-world <b>dollar cost</b> you can estimate as you go. Change your mind anytime with <b>Back</b>. Get to the finish line with a base model worth building on.</p>
   </header>
 
   <div class="layout">
@@ -138,6 +156,11 @@ guide: true
     </div>
 
     <aside class="side">
+      <div class="spend">
+        <h3>Total spend</h3>
+        <div class="spend-num" id="spendTotal">$0</div>
+        <div class="spend-hint">Sum of what you budgeted for each decision. Edit any amount as you go.</div>
+      </div>
       <div class="meters">
         <h3>Model state</h3>
         <div class="meter" id="m-cap">
@@ -163,9 +186,10 @@ guide: true
   <div class="discuss">
     <h4>Use it to lead the discussion</h4>
     <ul>
-      <li>Play it once making the &ldquo;obvious&rdquo; choices, then replay optimizing for a real model. What changed?</li>
-      <li>Which single stage had the biggest effect on the outcome, and why?</li>
-      <li>Notice the recurring tension: nearly every capability gain costs compute or risks stability. Where is that trade sharpest?</li>
+      <li>Before revealing each tradeoff, have the group <b>guess the dollar cost</b> and type it in. How close were they to the reference?</li>
+      <li>Play once optimizing purely for capability, then replay on a tight budget using <b>Back</b> to change calls. What did you sacrifice?</li>
+      <li>Which single stage moved the total spend the most, and was it worth it?</li>
+      <li>Notice the recurring tension: nearly every capability gain costs compute or dollars or risks stability. Where is that trade sharpest?</li>
     </ul>
   </div>
 
@@ -188,16 +212,22 @@ guide: true
         { lab: "Scrape the whole web, feed it in raw",
           blurb: "Maximum volume, zero cleaning.",
           tag: "warn",
+          cost: 200000,
+          costNote: "Cheap to collect, but you pay later in wasted compute on duplicates.",
           fx: { cap: +18, stab: -8, budget: +8 },
           note: "Volume helps, but raw web data is full of duplicates, boilerplate, and toxic text. <b>Garbage in, garbage out:</b> the model learns the junk too, which shows up later as low-quality output. Duplicates also waste compute and can destabilize training." },
         { lab: "Curate: dedup, filter quality, remove toxic content",
           blurb: "A bit slower, much cleaner.",
           tag: "good",
+          cost: 1500000,
+          costNote: "Engineering time + a filtering/dedup pipeline over trillions of tokens.",
           fx: { cap: +22, stab: +5, budget: +12 },
           note: "This is a common high-quality strategy. <b>Deduplication and quality filtering</b> give more learning per token, reduce memorization of junk, and start you from a cleaner place. It costs some engineering time up front, but usually pays off as the model learns more efficiently." },
         { lab: "Use a tiny, hand-picked clean set",
           blurb: "Pristine, but small.",
           tag: "warn",
+          cost: 300000,
+          costNote: "Human curation is expensive per token, but the set is small.",
           fx: { cap: -8, stab: +6, budget: +2 },
           note: "Clean is good, but LLMs are hungry: too little data and the model simply can't learn broad capabilities. You'll have a well-behaved but weak model. Scale of data matters, not just quality." }
       ]
@@ -211,16 +241,22 @@ guide: true
         { lab: "Go huge: giant model, relatively little data",
           blurb: "Max parameters, fewer training tokens.",
           tag: "bad",
+          cost: 8000000,
+          costNote: "A giant model eats GPU-hours fast, even on limited data.",
           fx: { cap: -6, stab: -6, budget: +30 },
           note: "A common early mistake. A giant model trained on too few tokens is <b>undertrained</b> &mdash; it wastes parameters it never learned to use, and burns budget fast. The Chinchilla result showed many big models were badly under-trained on data." },
         { lab: "Balance model size and data (compute-optimal)",
           blurb: "Roughly scale tokens with parameters.",
           tag: "good",
+          cost: 5000000,
+          costNote: "The compute-optimal point: most capability per GPU-dollar.",
           fx: { cap: +25, stab: +3, budget: +22 },
           note: "The sweet spot from scaling laws: for a given compute budget, grow parameters and training tokens <b>together</b>. You get the most capability per dollar of compute here." },
         { lab: "Go small: modest model, tons of data",
           blurb: "Fewer parameters, train long.",
           tag: "warn",
+          cost: 3000000,
+          costNote: "Cheaper to train and to serve, but you train for a long time.",
           fx: { cap: +12, stab: +4, budget: +16 },
           note: "Not wrong &mdash; small models trained on lots of data are cheap to run and surprisingly capable (this is why small, over-trained models are popular for deployment). But you leave some peak capability on the table versus the balanced point." }
       ]
@@ -234,16 +270,22 @@ guide: true
         { lab: "Just use one GPU anyway",
           blurb: "Refuse to distribute.",
           tag: "bad",
+          cost: 500000,
+          costNote: "Looks cheap, but you can barely train — mostly wasted money.",
           fx: { cap: -20, stab: -10, budget: +4 },
           note: "It won't fit &mdash; you're forced to shrink the model or batch until it barely trains. This is exactly the memory wall that <b>parallelism</b> exists to solve." },
         { lab: "Data parallelism only (replicate model, split the batch)",
           blurb: "Each GPU has a full copy, different data.",
           tag: "warn",
+          cost: 2000000,
+          costNote: "Simple to run, but you rent a lot of GPUs that each hold a full copy.",
           fx: { cap: +8, stab: +2, budget: +10 },
           note: "Data parallelism splits the <i>batch</i> across GPUs and syncs gradients (all-reduce). Great for speed, but every GPU still stores the <b>full</b> model, gradients, and optimizer &mdash; so it doesn't help when the model itself is too big." },
         { lab: "Combine data + model/tensor + pipeline parallelism (and ZeRO)",
           blurb: "Split the model across GPUs too.",
           tag: "good",
+          cost: 4000000,
+          costNote: "More engineering and interconnect, but it actually fits and trains.",
           fx: { cap: +20, stab: +4, budget: +14 },
           note: "The real answer for large models. <b>Tensor/model parallelism</b> splits individual layers across GPUs, <b>pipeline parallelism</b> puts different layers on different GPUs, and <b>ZeRO</b> shards the optimizer/gradients so no single GPU holds everything. Together they break the memory wall." }
       ]
@@ -257,13 +299,38 @@ guide: true
   function clamp(v) { return Math.max(0, Math.min(METER_MAX, v)); }
 
   function init() {
-    state = { idx: 0, meters: Object.assign({}, START), picks: [], done: false };
+    state = { idx: 0, picks: [], meters: Object.assign({}, START), totalCost: 0, done: false };
     host = document.getElementById("stageHost");
     rail = document.getElementById("rail");
     document.getElementById("restartBtn").style.display = "none";
-    renderMeters(true);
+    recompute();
     renderRail();
     renderStage();
+  }
+
+  // Recompute meters + total spend from the list of picks. This makes
+  // "go back / change a choice" trivial: we never have to undo effects.
+  function recompute() {
+    var m = Object.assign({}, START);
+    var total = 0;
+    state.picks.forEach(function (p) {
+      if (!p) return;
+      var c = STAGES[p.stageIdx].choices[p.ci];
+      ["cap", "stab", "budget"].forEach(function (k) {
+        m[k] = clamp(m[k] + (c.fx[k] || 0));
+      });
+      total += (typeof p.cost === "number" && !isNaN(p.cost)) ? p.cost : 0;
+    });
+    state.meters = m;
+    state.totalCost = total;
+  }
+
+  function fmtMoney(n) {
+    if (!n) return "$0";
+    if (n >= 1e9) return "$" + (n / 1e9).toFixed(n % 1e9 === 0 ? 0 : 1) + "B";
+    if (n >= 1e6) return "$" + (n / 1e6).toFixed(n % 1e6 === 0 ? 0 : 1) + "M";
+    if (n >= 1e3) return "$" + Math.round(n / 1e3) + "K";
+    return "$" + Math.round(n);
   }
 
   function renderRail() {
@@ -283,6 +350,7 @@ guide: true
   function renderStage() {
     if (state.idx >= STAGES.length) { renderReport(); return; }
     var s = STAGES[state.idx];
+    var pick = state.picks[state.idx];
     var card = document.createElement("div");
     card.className = "card";
     card.innerHTML =
@@ -296,51 +364,94 @@ guide: true
       var b = document.createElement("button");
       b.className = "choice";
       b.innerHTML = '<span class="lab">' + c.lab + "</span><span class='blurb'>" + c.blurb + "</span>";
-      b.addEventListener("click", function () { choose(ci, card); });
+      if (pick) {
+        if (ci === pick.ci) b.classList.add("picked");
+        else b.classList.add("dim");
+      }
+      b.addEventListener("click", function () { choose(ci); });
       choicesEl.appendChild(b);
     });
     host.innerHTML = "";
     host.appendChild(card);
+
+    if (pick) renderFeedback(card);
+    else renderNav(card, false);
   }
 
-  function choose(ci, card) {
-    var s = STAGES[state.idx];
-    var c = s.choices[ci];
-    var btns = card.querySelectorAll(".choice");
-    Array.prototype.forEach.call(btns, function (b, i) {
-      b.disabled = true;
-        if (i === ci) b.classList.add("picked");
-      else b.classList.add("dim");
-    });
-    // apply effects
-    var applied = {};
-    ["cap", "stab", "budget"].forEach(function (k) {
-      var d = c.fx[k] || 0;
-      applied[k] = d;
-      state.meters[k] = clamp(state.meters[k] + d);
-    });
-    state.picks.push({ stage: s.key, choice: c.lab, tag: c.tag, fx: applied });
+  function choose(ci) {
+    var prev = state.picks[state.idx];
+    var c = STAGES[state.idx].choices[ci];
+    // keep an edited cost if they re-pick the same choice, else reset to default
+    var cost = (prev && prev.ci === ci && typeof prev.cost === "number") ? prev.cost : c.cost;
+    state.picks[state.idx] = { stageIdx: state.idx, ci: ci, cost: cost };
+    recompute();
     renderMeters(false);
+    renderStage();
+  }
 
-    // feedback
+  function renderFeedback(card) {
+    var s = STAGES[state.idx];
+    var pick = state.picks[state.idx];
+    var c = s.choices[pick.ci];
+    var applied = {};
+    ["cap", "stab", "budget"].forEach(function (k) { applied[k] = c.fx[k] || 0; });
+
     var fb = card.querySelector(".fbhost");
     fb.innerHTML =
       '<div class="feedback">' +
         '<span class="verdict-word">Tradeoff:</span> ' + c.note +
         '<div class="delta">' + deltaChips(applied) + "</div>" +
       "</div>" +
+      '<div class="costrow">' +
+        '<label for="costInput">What would you budget for this decision?</label>' +
+        '<span class="dollar"><span>$</span><input id="costInput" type="text" inputmode="numeric" value="' +
+          (typeof pick.cost === "number" ? pick.cost.toLocaleString() : "") + '" /></span>' +
+        '<span class="cn">' + (c.costNote || "") + " <em>Illustrative reference: " + fmtMoney(c.cost) + ".</em></span>" +
+      "</div>" +
       '<div class="nextbar"></div>';
-    var nb = fb.querySelector(".nextbar");
-    var next = document.createElement("button");
-    next.className = "btn primary";
-    var last = state.idx === STAGES.length - 1;
-    next.textContent = last ? "Ship the model \u2192" : "Next stage \u2192";
-    next.addEventListener("click", function () {
-      state.idx++;
-      renderRail();
-      renderStage();
+
+    var input = fb.querySelector("#costInput");
+    input.addEventListener("input", function () {
+      var digits = input.value.replace(/[^0-9]/g, "");
+      pick.cost = digits === "" ? 0 : parseInt(digits, 10);
+      recompute();
+      renderMeters(false);
     });
-    nb.appendChild(next);
+    input.addEventListener("blur", function () {
+      input.value = (pick.cost || 0).toLocaleString();
+    });
+
+    renderNav(card, true);
+  }
+
+  function renderNav(card, hasPick) {
+    var nb = card.querySelector(".nextbar");
+    nb.innerHTML = "";
+    if (state.idx > 0) {
+      var back = document.createElement("button");
+      back.className = "btn";
+      back.textContent = "\u2190 Back";
+      back.addEventListener("click", function () {
+        state.idx--;
+        recompute();
+        renderMeters(false);
+        renderRail();
+        renderStage();
+      });
+      nb.appendChild(back);
+    }
+    if (hasPick) {
+      var next = document.createElement("button");
+      next.className = "btn primary";
+      var last = state.idx === STAGES.length - 1;
+      next.textContent = last ? "Ship the model \u2192" : "Next stage \u2192";
+      next.addEventListener("click", function () {
+        state.idx++;
+        renderRail();
+        renderStage();
+      });
+      nb.appendChild(next);
+    }
   }
 
   function deltaChips(applied) {
@@ -365,6 +476,7 @@ guide: true
     setMeter("m-stab", state.meters.stab, colorFor(state.meters.stab, false));
     // budget: more spent is worse -> invert color logic
     setMeter("m-budget", state.meters.budget, colorFor(100 - state.meters.budget, false), true);
+    document.getElementById("spendTotal").textContent = fmtMoney(state.totalCost);
   }
   function setMeter(id, val, color, isBudget) {
     var el = document.getElementById(id);
@@ -414,8 +526,12 @@ guide: true
     }).join("");
 
     var rec = state.picks.map(function (p) {
-      var col = p.tag === "good" ? "var(--green)" : p.tag === "bad" ? "var(--red)" : "var(--yellow)";
-      return '<li><span style="color:var(--fg-dim)">' + p.stage + ":</span> <span style='color:" + col + "'>" + p.choice + "</span></li>";
+      if (!p) return "";
+      var stg = STAGES[p.stageIdx];
+      var c = stg.choices[p.ci];
+      var col = c.tag === "good" ? "var(--green)" : c.tag === "bad" ? "var(--red)" : "var(--yellow)";
+      return '<li><span style="color:var(--fg-dim)">' + stg.key + ":</span> <span style='color:" + col + "'>" + c.lab + "</span> " +
+        '<span style="color:var(--purple);font-family:var(--mono)">' + fmtMoney(p.cost || 0) + "</span></li>";
     }).join("");
 
     var card = document.createElement("div");
@@ -427,10 +543,28 @@ guide: true
         '<div style="color:var(--fg-muted);font-size:0.85rem;">Overall score ' + Math.round(overall) + "/100</div></div>" +
       "</div>" +
       "<ul>" + lis + "</ul>" +
-      '<h3 style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-muted);margin:1rem 0 0.3rem;">Your decisions</h3>' +
-      '<ul style="list-style:none;padding-left:0;font-size:0.86rem;">' + rec + "</ul>";
+      '<h3 style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-muted);margin:1rem 0 0.3rem;">Your decisions &amp; budgeted cost</h3>' +
+      '<ul style="list-style:none;padding-left:0;font-size:0.86rem;">' + rec + "</ul>" +
+      '<div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--border);font-size:0.95rem;">' +
+        'Total budgeted spend: <b style="color:var(--green);font-family:var(--mono)">' + fmtMoney(state.totalCost) + "</b></div>" +
+      '<div class="nextbar" id="reportNav"></div>';
     host.innerHTML = "";
     host.appendChild(card);
+
+    var nav = card.querySelector("#reportNav");
+    var back = document.createElement("button");
+    back.className = "btn";
+    back.textContent = "\u2190 Back";
+    back.addEventListener("click", function () {
+      state.done = false;
+      state.idx = STAGES.length - 1;
+      recompute();
+      renderMeters(false);
+      renderRail();
+      renderStage();
+    });
+    nav.appendChild(back);
+
     document.getElementById("restartBtn").style.display = "";
   }
 
