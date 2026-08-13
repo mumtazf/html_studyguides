@@ -1,6 +1,6 @@
 ---
 title: "LLM Pre-training Trade-off Sandbox"
-description: "An interactive workbench to explore how model size, dataset scale, filtering, and hardware choices impact training costs, inference cost, and model capability."
+description: "A beginner-friendly visual guide to understanding model size vs reading volume trade-offs in LLM training."
 date: 2026-08-13
 guide: true
 ---
@@ -9,7 +9,7 @@ guide: true
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>LLM Pre-training Trade-off Sandbox</title>
+<title>LLM Training Trade-offs: Brain Size vs Reading Scale</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -19,15 +19,14 @@ guide: true
     --border-strong: #8b949e;
     --fg: #c9d1d9;
     --fg-muted: #8b949e;
-    --fg-dim: #6e7681;
     --blue: #58a6ff;
     --green: #3fb950;
     --yellow: #d29922;
     --red: #f85149;
     --purple: #bc8cff;
     --orange: #f0883e;
-    --mono: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
   }
 
   * { box-sizing: border-box; }
@@ -41,31 +40,28 @@ guide: true
   }
 
   .container {
-    max-width: 1080px;
+    max-width: 960px;
     margin: 0 auto;
   }
 
   header {
+    text-align: center;
     margin-bottom: 2rem;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 1.2rem;
   }
   header h1 {
     color: #fff;
     font-size: 1.8rem;
-    margin: 0 0 0.4rem;
+    margin: 0 0 0.5rem;
   }
   header p {
     color: var(--fg-muted);
     font-size: 1.05rem;
-    margin: 0;
+    max-width: 680px;
+    margin: 0 auto;
   }
 
-  /* Preset Scenarios */
-  .presets-section {
-    margin-bottom: 2rem;
-  }
-  .presets-title {
+  /* Strategy Cards */
+  .section-label {
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -73,94 +69,85 @@ guide: true
     font-family: var(--mono);
     margin-bottom: 0.8rem;
   }
-  .presets-grid {
+
+  .cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1rem;
+    margin-bottom: 2rem;
   }
-  .preset-card {
+
+  .strategy-card {
     background: var(--bg-elev);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 1rem 1.2rem;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
     cursor: pointer;
     transition: all 150ms ease;
     text-align: left;
-    width: 100%;
   }
-  .preset-card:hover {
+  .strategy-card:hover {
     border-color: var(--blue);
     transform: translateY(-2px);
   }
-  .preset-card.active {
+  .strategy-card.selected {
     border-color: var(--blue);
     background: var(--bg-elev-2);
-    box-shadow: 0 0 0 1px var(--blue);
   }
-  .preset-card h3 {
-    margin: 0 0 0.3rem;
+
+  .card-icon {
+    font-size: 1.8rem;
+    margin-bottom: 0.4rem;
+  }
+  .strategy-card h3 {
     color: #fff;
-    font-size: 1.05rem;
+    font-size: 1.1rem;
+    margin: 0 0 0.3rem;
   }
-  .preset-card p {
-    margin: 0;
+  .strategy-card .tagline {
+    color: var(--blue);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  .strategy-card p {
     color: var(--fg-muted);
     font-size: 0.88rem;
+    margin: 0;
   }
 
-  /* Workbench Layout */
+  /* Interactive Workbench */
   .workbench {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-    align-items: start;
+    gap: 1.8rem;
+    margin-bottom: 2rem;
   }
 
-  @media (max-width: 820px) {
+  @media (max-width: 768px) {
     .workbench { grid-template-columns: 1fr; }
   }
 
-  .panel {
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.3rem;
-  }
-
-  .panel-title {
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--blue);
-    font-family: var(--mono);
+  .control-item {
     margin-bottom: 1.2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
   }
+  .control-item:last-child { margin-bottom: 0; }
 
-  /* Controls */
-  .control-group {
-    margin-bottom: 1.4rem;
-  }
-  .control-label {
+  .control-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
     font-weight: 600;
-    font-size: 0.92rem;
+    font-size: 0.95rem;
     color: #fff;
     margin-bottom: 0.4rem;
   }
   .control-val {
-    font-family: var(--mono);
     color: var(--blue);
-    font-weight: 600;
-  }
-  .control-hint {
-    font-size: 0.8rem;
-    color: var(--fg-muted);
-    margin-top: 0.2rem;
+    font-family: var(--mono);
   }
 
   input[type="range"] {
@@ -169,117 +156,99 @@ guide: true
     cursor: pointer;
   }
 
-  .btn-group {
+  .slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+    margin-top: 0.2rem;
+  }
+
+  .toggle-options {
     display: flex;
     gap: 0.5rem;
     margin-top: 0.4rem;
   }
-  .toggle-btn {
+  .opt-btn {
     flex: 1;
     background: var(--bg-elev-2);
     border: 1px solid var(--border);
     color: var(--fg);
-    padding: 0.55rem 0.6rem;
+    padding: 0.5rem;
     border-radius: 8px;
     font-size: 0.82rem;
     cursor: pointer;
-    transition: all 120ms;
   }
-  .toggle-btn:hover {
-    border-color: var(--border-strong);
-  }
-  .toggle-btn.active {
+  .opt-btn.active {
     background: var(--blue);
     color: #000;
     border-color: var(--blue);
     font-weight: 600;
   }
 
-  /* Live Outcome Meters */
-  .metric-card {
+  /* Outcomes Side */
+  .outcome-box {
     background: var(--bg-elev-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.9rem;
+    border-radius: 10px;
+    padding: 1.2rem;
+  }
+
+  .meter-group {
     margin-bottom: 1rem;
   }
-  .metric-top {
+  .meter-group:last-child { margin-bottom: 0; }
+
+  .meter-header {
     display: flex;
     justify-content: space-between;
     font-size: 0.88rem;
     margin-bottom: 0.3rem;
   }
-  .metric-name { color: var(--fg); font-weight: 600; }
-  .metric-num { font-family: var(--mono); font-weight: 700; color: #fff; }
-  
-  .progress-track {
-    height: 8px;
+  .meter-title { color: #fff; font-weight: 600; }
+  .meter-status { font-weight: 600; }
+
+  .bar-track {
+    height: 10px;
     background: var(--bg);
     border-radius: 999px;
     overflow: hidden;
-    margin-top: 0.3rem;
   }
-  .progress-fill {
+  .bar-fill {
     height: 100%;
-    width: 0%;
+    width: 50%;
     transition: width 200ms ease, background 200ms ease;
     border-radius: 999px;
   }
 
-  .archetype-badge {
-    display: inline-block;
-    padding: 0.25rem 0.75rem;
-    border-radius: 999px;
-    font-family: var(--mono);
-    font-size: 0.82rem;
-    font-weight: 600;
-    margin-bottom: 1rem;
-  }
-  .archetype-badge.chinchilla { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid var(--green); }
-  .archetype-badge.overtrained { background: rgba(88, 166, 255, 0.15); color: var(--blue); border: 1px solid var(--blue); }
-  .archetype-badge.undertrained { background: rgba(240, 136, 62, 0.15); color: var(--orange); border: 1px solid var(--orange); }
-
-  .insight-box {
-    background: rgba(88, 166, 255, 0.08);
-    border-left: 3px solid var(--blue);
+  .summary-banner {
+    margin-top: 1.2rem;
     padding: 0.9rem;
-    border-radius: 0 8px 8px 0;
-    font-size: 0.88rem;
-    color: var(--fg);
-    margin-top: 1rem;
+    border-radius: 8px;
+    background: rgba(88, 166, 255, 0.1);
+    border-left: 3px solid var(--blue);
+    font-size: 0.9rem;
   }
-  .insight-box h4 {
-    margin: 0 0 0.3rem;
-    color: #fff;
-    font-size: 0.92rem;
-  }
+  .summary-banner b { color: #fff; }
 
   /* Discussion Section */
-  .discussion-section {
-    margin-top: 2rem;
+  .discussion {
     background: var(--bg-elev);
     border: 1px dashed var(--orange);
     border-radius: 12px;
     padding: 1.3rem;
   }
-  .discussion-section h3 {
+  .discussion h3 {
     color: var(--orange);
-    margin: 0 0 0.8rem;
+    margin: 0 0 0.6rem;
     font-size: 1.1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
   }
-  .discussion-list {
+  .discussion ul {
     margin: 0;
     padding-left: 1.2rem;
   }
-  .discussion-list li {
-    margin-bottom: 0.6rem;
-    color: var(--fg);
-  }
-  .discussion-list li b {
-    color: #fff;
+  .discussion li {
+    margin-bottom: 0.5rem;
   }
 </style>
 </head>
@@ -287,300 +256,240 @@ guide: true
 
 <div class="container">
   <header>
-    <h1>LLM Pre-training Trade-off Sandbox</h1>
-    <p>Explore how parameter count, token scale, dataset filtering, and hardware affect training vs inference trade-offs.</p>
+    <h1>LLM Training Trade-offs</h1>
+    <p>Think of training an LLM like building a brain and sending it to read a library. How would you balance brain size vs reading volume?</p>
   </header>
 
-  <!-- Presets -->
-  <div class="presets-section">
-    <div class="presets-title">Quick Real-World Strategy Presets</div>
-    <div class="presets-grid">
-      <button class="preset-card active" id="preset-llama" onclick="loadPreset('llama')">
-        <h3>🦙 Llama-3 8B Strategy</h3>
-        <p><b>Overtrained for inference:</b> 8B params on 15T tokens (1,875 tokens/param). High training cost, ultra-cheap serving.</p>
-      </button>
+  <!-- Strategy Cards -->
+  <div class="section-label">1. Pick a Strategy Persona</div>
+  <div class="cards-grid">
+    <div class="strategy-card selected" id="card-llama" onclick="selectStrategy('llama')">
+      <div class="card-icon">🦙</div>
+      <h3>Compact Brain + Giant Library</h3>
+      <div class="tagline">Llama 3 Style</div>
+      <p>Build a smaller brain (8B params), but make it read 15 Trillion tokens. High upfront training time, but <b>fast &amp; cheap to chat with daily</b>.</p>
+    </div>
 
-      <button class="preset-card" id="preset-chinchilla" onclick="loadPreset('chinchilla')">
-        <h3>⚖️ Chinchilla Compute-Optimal</h3>
-        <p><b>Training efficient:</b> ~20 tokens per parameter (e.g. 70B params on 1.4T tokens). Maximum capability learned per training dollar.</p>
-      </button>
+    <div class="strategy-card" id="card-chinchilla" onclick="selectStrategy('chinchilla')">
+      <div class="card-icon">⚖️</div>
+      <h3>Balanced Brain &amp; Library</h3>
+      <div class="tagline">Chinchilla Compute-Optimal</div>
+      <p>Scale brain size and reading list together (~70B params on 1.4T tokens). <b>Maximum smarts per training dollar spent</b>.</p>
+    </div>
 
-      <button class="preset-card" id="preset-undertrained" onclick="loadPreset('undertrained')">
-        <h3>🐘 Undertrained Giant</h3>
-        <p><b>Parameter heavy:</b> 175B params on only 300B tokens (~1.7 tokens/param). High memory cost, capacity left on the table.</p>
-      </button>
+    <div class="strategy-card" id="card-giant" onclick="selectStrategy('giant')">
+      <div class="card-icon">🐘</div>
+      <h3>Giant Brain + Quick Skim</h3>
+      <div class="tagline">Undertrained Giant</div>
+      <p>Build a massive brain (175B params), but only read 300 Billion tokens. <b>Very expensive to run</b>, leaving empty brain capacity.</p>
     </div>
   </div>
 
-  <!-- Workbench -->
+  <!-- Interactive Sliders -->
+  <div class="section-label">2. Adjust the Setup</div>
   <div class="workbench">
-    <!-- Left: Controls -->
-    <div class="panel">
-      <div class="panel-title">
-        <span>1. Interactive Parameters</span>
-        <span style="color: var(--fg-dim); font-size: 0.75rem;">Adjust &amp; see live impact</span>
+    <div class="controls-side">
+      <!-- Brain Size Slider -->
+      <div class="control-item">
+        <div class="control-header">
+          <span>🧠 Model Brain Size</span>
+          <span class="control-val" id="val-brain">8B Parameters</span>
+        </div>
+        <input type="range" id="slider-brain" min="1" max="3" step="1" value="1" oninput="updateWorkbench()">
+        <div class="slider-labels">
+          <span>Compact (8B)</span>
+          <span>Medium (70B)</span>
+          <span>Giant (175B)</span>
+        </div>
       </div>
 
-      <!-- Model Size Slider -->
-      <div class="control-group">
-        <div class="control-label">
-          <span>Model Parameters ($N$)</span>
-          <span class="control-val" id="val-params">8 Billion</span>
+      <!-- Library Size Slider -->
+      <div class="control-item">
+        <div class="control-header">
+          <span>📚 Library Reading Volume</span>
+          <span class="control-val" id="val-library">15.0T Tokens</span>
         </div>
-        <input type="range" id="slider-params" min="1" max="200" step="1" value="8" oninput="updateCalculations()">
-        <div class="control-hint">Controls parameter capacity &amp; GPU memory requirement per request.</div>
-      </div>
-
-      <!-- Dataset Size Slider -->
-      <div class="control-group">
-        <div class="control-label">
-          <span>Training Dataset ($D$)</span>
-          <span class="control-val" id="val-tokens">15.0 Trillion tokens</span>
+        <input type="range" id="slider-library" min="1" max="3" step="1" value="3" oninput="updateWorkbench()">
+        <div class="slider-labels">
+          <span>Light (0.3T)</span>
+          <span>Medium (1.4T)</span>
+          <span>Massive (15T)</span>
         </div>
-        <input type="range" id="slider-tokens" min="0.1" max="20" step="0.1" value="15" oninput="updateCalculations()">
-        <div class="control-hint">Number of unique tokens seen during pre-training.</div>
       </div>
 
       <!-- Data Quality Toggle -->
-      <div class="control-group">
-        <div class="control-label">Data Filtering Strategy</div>
-        <div class="btn-group">
-          <button class="toggle-btn" id="data-raw" onclick="setDataQuality('raw')">Raw Web</button>
-          <button class="toggle-btn active" id="data-clean" onclick="setDataQuality('clean')">Deduped &amp; Filtered</button>
-          <button class="toggle-btn" id="data-synthetic" onclick="setDataQuality('synthetic')">Synthetic/HQ</button>
+      <div class="control-item">
+        <div class="control-header"><span>🧼 Book Quality</span></div>
+        <div class="toggle-options">
+          <button class="opt-btn" id="q-raw" onclick="setQuality('raw')">Raw Web (Messy)</button>
+          <button class="opt-btn active" id="q-clean" onclick="setQuality('clean')">Filtered &amp; Clean</button>
         </div>
-        <div class="control-hint" id="hint-data">Deduplication and quality filtering increase effective learning per token.</div>
-      </div>
-
-      <!-- GPU Cluster Size -->
-      <div class="control-group">
-        <div class="control-label">Training GPU Cluster</div>
-        <div class="btn-group">
-          <button class="toggle-btn" id="gpu-small" onclick="setGpuCluster(128)">128 GPUs</button>
-          <button class="toggle-btn active" id="gpu-med" onclick="setGpuCluster(1024)">1,024 GPUs</button>
-          <button class="toggle-btn" id="gpu-large" onclick="setGpuCluster(16384)">16,384 GPUs</button>
-        </div>
-        <div class="control-hint">Simulates H100 GPU cluster scale for wall-clock training time.</div>
       </div>
     </div>
 
-    <!-- Right: Live Outcomes -->
-    <div class="panel">
-      <div class="panel-title">2. Live Model Profile</div>
+    <!-- Live Outcomes -->
+    <div class="outcome-side">
+      <div class="outcome-box">
+        <!-- Daily Chat Speed & Cost -->
+        <div class="meter-group">
+          <div class="meter-header">
+            <span class="meter-title">⚡ User Chat Speed &amp; Cost</span>
+            <span class="meter-status" id="status-chat" style="color: var(--green);">Fast &amp; Cheap</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" id="bar-chat" style="width: 90%; background: var(--green);"></div>
+          </div>
+        </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between;">
-        <span style="color: var(--fg-muted); font-size: 0.85rem;">Strategy Archetype:</span>
-        <span id="archetype-badge" class="archetype-badge overtrained">Overtrained (Inference Optimized)</span>
-      </div>
+        <!-- Smarts -->
+        <div class="meter-group">
+          <div class="meter-header">
+            <span class="meter-title">🧠 Overall Smarts / Intelligence</span>
+            <span class="meter-status" id="status-smarts" style="color: var(--blue);">High</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" id="bar-smarts" style="width: 75%; background: var(--blue);"></div>
+          </div>
+        </div>
 
-      <!-- Token to Parameter Ratio -->
-      <div class="metric-card">
-        <div class="metric-top">
-          <span class="metric-name">Token / Parameter Ratio</span>
-          <span class="metric-num" id="metric-ratio">1,875 ×</span>
+        <!-- Training Bill -->
+        <div class="meter-group">
+          <div class="meter-header">
+            <span class="meter-title">💰 Pre-training GPU Bill</span>
+            <span class="meter-status" id="status-bill" style="color: var(--orange);">Heavy Upfront</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" id="bar-bill" style="width: 70%; background: var(--orange);"></div>
+          </div>
         </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="fill-ratio" style="width: 90%; background: var(--blue);"></div>
-        </div>
-        <div style="font-size: 0.78rem; color: var(--fg-muted); margin-top: 0.3rem;" id="hint-ratio">
-          Chinchilla optimal ratio is ~20 tokens/param. Ratio > 100× prioritizes cheap inference.
-        </div>
-      </div>
 
-      <!-- Pre-training Cost & Time -->
-      <div class="metric-card">
-        <div class="metric-top">
-          <span class="metric-name">Pre-training Compute &amp; Time</span>
-          <span class="metric-num" id="metric-cost">~720K H100-hrs | 29 Days</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="fill-cost" style="width: 45%; background: var(--purple);"></div>
-        </div>
-        <div style="font-size: 0.78rem; color: var(--fg-muted); margin-top: 0.3rem;" id="hint-cost">
-          Total FLOPs: ~7.2e23. Estimated GPU cloud cost: ~$2.1M.
-        </div>
-      </div>
-
-      <!-- Serving / Inference Cost -->
-      <div class="metric-card">
-        <div class="metric-top">
-          <span class="metric-name">Serving / Inference Efficiency</span>
-          <span class="metric-num" id="metric-serving" style="color: var(--green);">Ultra Cheap ($0.02 / 1M tokens)</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="fill-serving" style="width: 95%; background: var(--green);"></div>
-        </div>
-        <div style="font-size: 0.78rem; color: var(--fg-muted); margin-top: 0.3rem;">
-          Smaller parameter models require far less VRAM and bandwidth during user requests.
-        </div>
-      </div>
-
-      <!-- Key Insights -->
-      <div class="insight-box" id="insight-box">
-        <h4 id="insight-title">💡 Why choose this strategy?</h4>
-        <div id="insight-text">
-          Training on 15T tokens costs significantly more up front, but because the model is only 8B parameters, it can be served to millions of users at extremely low latency and cost.
+        <!-- Takeaway Banner -->
+        <div class="summary-banner" id="summary-banner">
+          <b>Why do this?</b> Over-training a small brain takes more training time, but makes the final model <b>extremely fast and cheap to serve</b> to millions of chat users!
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Discussion Prompts -->
-  <div class="discussion-section">
-    <h3>💬 Discussion Prompts for Your Group</h3>
-    <ul class="discussion-list">
-      <li>
-        <b>Pre-training vs Inference Economics:</b> Why did Meta spend millions overtraining Llama-3 8B on 15 Trillion tokens instead of stopping at the "Chinchilla optimal" 160 Billion tokens?
-      </li>
-      <li>
-        <b>Hardware Memory Wall:</b> When parameters scale to 70B+, a single GPU cannot fit the model weights + optimizer state (~1.1 TB VRAM needed during training). What parallelism strategy is needed?
-      </li>
-      <li>
-        <b>Data Quality vs Volume:</b> If you only have 100 GPUs, is it better to scrape 10T raw tokens or carefully filter 1T high-quality tokens?
-      </li>
+  <!-- Discussion Section -->
+  <div class="discussion">
+    <h3>💬 Discussion Questions for Your Group</h3>
+    <ul>
+      <li><b>Serving vs Training:</b> If you plan to serve 100 Million users a day, why is a smaller overtrained model (Llama 8B) better than a huge undertrained model?</li>
+      <li><b>Data Quality:</b> What happens when you feed an LLM "dirty/duplicate" web text versus clean curated books?</li>
+      <li><b>Hardware Memory:</b> Why is it so hard to fit a 175B parameter brain on a single GPU?</li>
     </ul>
   </div>
 </div>
 
 <script>
-  var dataQuality = 'clean';
-  var gpus = 1024;
+  var quality = 'clean';
 
-  function loadPreset(name) {
-    document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
-    if (name === 'llama') {
-      document.getElementById('preset-llama').classList.add('active');
-      document.getElementById('slider-params').value = 8;
-      document.getElementById('slider-tokens').value = 15;
-      dataQuality = 'clean';
-    } else if (name === 'chinchilla') {
-      document.getElementById('preset-chinchilla').classList.add('active');
-      document.getElementById('slider-params').value = 70;
-      document.getElementById('slider-tokens').value = 1.4;
-      dataQuality = 'clean';
-    } else if (name === 'undertrained') {
-      document.getElementById('preset-undertrained').classList.add('active');
-      document.getElementById('slider-params').value = 175;
-      document.getElementById('slider-tokens').value = 0.3;
-      dataQuality = 'raw';
+  function selectStrategy(type) {
+    document.querySelectorAll('.strategy-card').forEach(c => c.classList.remove('selected'));
+    if (type === 'llama') {
+      document.getElementById('card-llama').classList.add('selected');
+      document.getElementById('slider-brain').value = 1; // 8B
+      document.getElementById('slider-library').value = 3; // 15T
+    } else if (type === 'chinchilla') {
+      document.getElementById('card-chinchilla').classList.add('selected');
+      document.getElementById('slider-brain').value = 2; // 70B
+      document.getElementById('slider-library').value = 2; // 1.4T
+    } else if (type === 'giant') {
+      document.getElementById('card-giant').classList.add('selected');
+      document.getElementById('slider-brain').value = 3; // 175B
+      document.getElementById('slider-library').value = 1; // 0.3T
     }
-    updateButtons();
-    updateCalculations();
+    updateWorkbench();
   }
 
-  function setDataQuality(q) {
-    dataQuality = q;
-    updateButtons();
-    updateCalculations();
+  function setQuality(q) {
+    quality = q;
+    document.getElementById('q-raw').classList.toggle('active', q === 'raw');
+    document.getElementById('q-clean').classList.toggle('active', q === 'clean');
+    updateWorkbench();
   }
 
-  function setGpuCluster(num) {
-    gpus = num;
-    updateButtons();
-    updateCalculations();
-  }
+  function updateWorkbench() {
+    var brain = parseInt(document.getElementById('slider-brain').value);
+    var lib = parseInt(document.getElementById('slider-library').value);
 
-  function updateButtons() {
-    ['raw', 'clean', 'synthetic'].forEach(q => {
-      document.getElementById('data-' + q).classList.toggle('active', dataQuality === q);
-    });
-    [128, 1024, 16384].forEach(g => {
-      var id = g === 128 ? 'gpu-small' : (g === 1024 ? 'gpu-med' : 'gpu-large');
-      document.getElementById(id).classList.toggle('active', gpus === g);
-    });
-  }
+    var brainText = brain === 1 ? '8B Parameters' : (brain === 2 ? '70B Parameters' : '175B Parameters');
+    var libText = lib === 1 ? '0.3T Tokens' : (lib === 2 ? '1.4T Tokens' : '15.0T Tokens');
 
-  function updateCalculations() {
-    var N = parseFloat(document.getElementById('slider-params').value); // Billions
-    var D = parseFloat(document.getElementById('slider-tokens').value); // Trillions
+    document.getElementById('val-brain').textContent = brainText;
+    document.getElementById('val-library').textContent = libText;
 
-    document.getElementById('val-params').textContent = N >= 1 ? N + ' Billion' : (N * 1000) + ' Million';
-    document.getElementById('val-tokens').textContent = D.toFixed(1) + ' Trillion tokens';
-
-    // Ratio = (D in Billions) / (N in Billions)
-    var ratio = Math.round((D * 1000) / N);
-    document.getElementById('metric-ratio').textContent = ratio.toLocaleString() + ' ×';
-
-    // Archetype calculation
-    var archetype = document.getElementById('archetype-badge');
-    var insightTitle = document.getElementById('insight-title');
-    var insightText = document.getElementById('insight-text');
-
-    if (ratio > 80) {
-      archetype.className = 'archetype-badge overtrained';
-      archetype.textContent = 'Overtrained (Inference Optimized)';
-      insightTitle.textContent = '💡 Inference-First Economics';
-      insightText.textContent = 'By training far beyond the Chinchilla point (' + ratio + '× tokens/param), you invest heavily in pre-training upfront to unlock ultra-cheap, low-latency deployment serving for millions of users.';
-    } else if (ratio >= 15 && ratio <= 80) {
-      archetype.className = 'archetype-badge chinchilla';
-      archetype.textContent = 'Chinchilla Compute-Optimal';
-      insightTitle.textContent = '⚖️ Optimal Pre-training Efficiency';
-      insightText.textContent = 'You are scaling parameters and tokens in tandem (~' + ratio + '× ratio). This maximizes model intelligence per dollar spent on pre-training GPU compute.';
+    // Chat Speed/Cost (smaller brain = faster/cheaper)
+    var statusChat = document.getElementById('status-chat');
+    var barChat = document.getElementById('bar-chat');
+    if (brain === 1) {
+      statusChat.textContent = 'Ultra Fast & Cheap';
+      statusChat.style.color = 'var(--green)';
+      barChat.style.width = '95%';
+      barChat.style.background = 'var(--green)';
+    } else if (brain === 2) {
+      statusChat.textContent = 'Moderate Speed & Cost';
+      statusChat.style.color = 'var(--yellow)';
+      barChat.style.width = '60%';
+      barChat.style.background = 'var(--yellow)';
     } else {
-      archetype.className = 'archetype-badge undertrained';
-      archetype.textContent = 'Undertrained Giant';
-      insightTitle.textContent = '⚠️ High Memory Overhead';
-      insightText.textContent = 'You have a large model (' + N + 'B) trained on relatively few tokens (' + ratio + '× ratio). The model has parameter capacity it never learned to fully utilize, making it expensive to serve.';
+      statusChat.textContent = 'Slow & Expensive to Serve';
+      statusChat.style.color = 'var(--red)';
+      barChat.style.width = '25%';
+      barChat.style.background = 'var(--red)';
     }
 
-    // Ratio progress bar
-    var fillRatio = document.getElementById('fill-ratio');
-    var ratioPct = Math.min(100, Math.max(5, (ratio / 150) * 100));
-    fillRatio.style.width = ratioPct + '%';
-    fillRatio.style.background = ratio > 80 ? 'var(--blue)' : (ratio >= 15 ? 'var(--green)' : 'var(--orange)');
+    // Smarts calculation
+    var statusSmarts = document.getElementById('status-smarts');
+    var barSmarts = document.getElementById('bar-smarts');
+    var smartsScore = (brain * 20) + (lib * 15) + (quality === 'clean' ? 15 : 0);
 
-    // Compute FLOPs: 6 * N_params * D_tokens
-    // N in B (1e9), D in T (1e12) -> N * D * 6 * 1e21 FLOPs
-    var totalFlops = 6 * N * D * 1e21;
-    // H100 ~ 1e15 FLOPs/sec (1 PFLOPS BF16/FP16 tensor core)
-    var h100Hours = Math.round((totalFlops / (1e15 * 3600)) * (dataQuality === 'synthetic' ? 1.2 : (dataQuality === 'raw' ? 0.9 : 1.0)));
-    var days = (h100Hours / (gpus * 24)).toFixed(1);
-    var estCostDollar = (h100Hours * 3.00); // ~$3/hr H100 cloud rate
-
-    var costStr = h100Hours >= 1000000 ? (h100Hours/1000000).toFixed(1) + 'M' : Math.round(h100Hours/1000) + 'K';
-    var costDollarStr = estCostDollar >= 1000000 ? '$' + (estCostDollar/1000000).toFixed(1) + 'M' : '$' + Math.round(estCostDollar/1000) + 'K';
-
-    document.getElementById('metric-cost').textContent = '~' + costStr + ' H100-hrs | ' + days + ' Days';
-    document.getElementById('hint-cost').textContent = 'Total FLOPs: ~' + totalFlops.toExponential(1) + '. Estimated GPU cloud cost: ~' + costDollarStr + ' on ' + gpus + ' GPUs.';
-
-    var fillCost = document.getElementById('fill-cost');
-    fillCost.style.width = Math.min(100, Math.max(5, (h100Hours / 3000000) * 100)) + '%';
-
-    // Serving Cost indicator
-    var servingText = document.getElementById('metric-serving');
-    var fillServing = document.getElementById('fill-serving');
-    var servingCostPerM = (N * 0.0025).toFixed(3);
-
-    if (N <= 10) {
-      servingText.textContent = 'Ultra Cheap (~$' + servingCostPerM + ' / 1M tokens)';
-      servingText.style.color = 'var(--green)';
-      fillServing.style.width = '90%';
-      fillServing.style.background = 'var(--green)';
-    } else if (N <= 70) {
-      servingText.textContent = 'Moderate (~$' + servingCostPerM + ' / 1M tokens)';
-      servingText.style.color = 'var(--yellow)';
-      fillServing.style.width = '55%';
-      fillServing.style.background = 'var(--yellow)';
+    if (smartsScore >= 75) {
+      statusSmarts.textContent = 'Very High Smarts';
+      statusSmarts.style.color = 'var(--green)';
+    } else if (smartsScore >= 50) {
+      statusSmarts.textContent = 'Moderate Smarts';
+      statusSmarts.style.color = 'var(--blue)';
     } else {
-      servingText.textContent = 'Expensive (~$' + servingCostPerM + ' / 1M tokens)';
-      servingText.style.color = 'var(--red)';
-      fillServing.style.width = '20%';
-      fillServing.style.background = 'var(--red)';
+      statusSmarts.textContent = 'Lower Smarts';
+      statusSmarts.style.color = 'var(--orange)';
     }
+    barSmarts.style.width = Math.min(100, smartsScore) + '%';
+    barSmarts.style.background = smartsScore >= 75 ? 'var(--green)' : 'var(--blue)';
 
-    // Hint data text
-    var hintData = document.getElementById('hint-data');
-    if (dataQuality === 'raw') {
-      hintData.textContent = '⚠️ Raw web data contains duplicates & boilerplate, reducing effective FLOP efficiency by ~15-20%.';
-    } else if (dataQuality === 'clean') {
-      hintData.textContent = '✅ Deduplication & quality filtering give maximum learning value per token.';
+    // Pre-training Bill
+    var statusBill = document.getElementById('status-bill');
+    var barBill = document.getElementById('bar-bill');
+    var billScore = (brain * 15) + (lib * 25);
+
+    if (billScore >= 80) {
+      statusBill.textContent = 'Huge Pre-training Bill';
+      statusBill.style.color = 'var(--red)';
+    } else if (billScore >= 50) {
+      statusBill.textContent = 'Moderate GPU Bill';
+      statusBill.style.color = 'var(--orange)';
     } else {
-      hintData.textContent = '✨ Synthetic & specialized datasets boost reasoning quality but add data generation overhead.';
+      statusBill.textContent = 'Low Pre-training Bill';
+      statusBill.style.color = 'var(--green)';
+    }
+    barBill.style.width = Math.min(100, billScore) + '%';
+    barBill.style.background = billScore >= 80 ? 'var(--red)' : 'var(--orange)';
+
+    // Takeaway Summary
+    var banner = document.getElementById('summary-banner');
+    if (brain === 1 && lib === 3) {
+      banner.innerHTML = '<b>Takeaway:</b> Small brain + huge reading list takes longer to train, but makes the final model <b>super cheap and fast to serve to millions of chat users!</b>';
+    } else if (brain === 2 && lib === 2) {
+      banner.innerHTML = '<b>Takeaway:</b> Balanced setup! Gives you the <b>most intelligence gained per training dollar spent</b>.';
+    } else if (brain === 3 && lib === 1) {
+      banner.innerHTML = '<b>Takeaway:</b> Giant brain with minimal reading. The model is <b>heavy and expensive to run</b>, with unused brain capacity.';
+    } else {
+      banner.innerHTML = '<b>Takeaway:</b> Notice how changing brain size directly impacts daily serving cost, while library volume drives upfront training time!';
     }
   }
 
-  // Initialize on load
-  updateCalculations();
+  updateWorkbench();
 </script>
 </body>
 </html>
