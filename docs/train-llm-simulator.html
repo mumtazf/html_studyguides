@@ -277,14 +277,7 @@ guide: true
           cost: 3000000,
           costNote: "Almost free memory savings — just more communication between GPUs.",
           fx: { cap: +16, stab: +4, budget: +12 },
-          note: "The first big improvement. Plain data parallelism wastes memory by <b>replicating</b> everything. ZeRO (a.k.a. FSDP) <b>shards</b> the optimizer state, gradients, and eventually the weights across GPUs, so no single GPU holds a full copy. You fit a much bigger model with the same hardware, paying only in extra communication." },
-        { lab: "Go full 3D: data + tensor + pipeline parallelism (with ZeRO)",
-          blurb: "Also split individual layers and stages across GPUs.",
-          tag: "good",
-          cost: 4500000,
-          costNote: "Most engineering and fastest interconnect, but scales to the largest models.",
-          fx: { cap: +22, stab: +5, budget: +16 },
-          note: "The frontier-scale answer. On top of sharding, <b>tensor parallelism</b> splits a single layer's math across GPUs and <b>pipeline parallelism</b> puts different layers on different GPUs. Combined (\u201c3D parallelism\u201d), they train models far too big for any other approach &mdash; but they demand fast interconnect (NVLink/InfiniBand) and careful tuning to avoid pipeline bubbles." }
+          note: "The first big improvement. Plain data parallelism wastes memory by <b>replicating</b> everything. ZeRO (a.k.a. FSDP) <b>shards</b> the optimizer state, gradients, and eventually the weights across GPUs, so no single GPU holds a full copy. You fit a much bigger model with the same hardware, paying only in extra communication." }
       ]
     }
   ];
