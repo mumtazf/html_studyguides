@@ -1,0 +1,442 @@
+---
+title: "Train an LLM: a decision simulator"
+description: "Play the ML engineer. Make one call per stage of LLM pre-training — data, scaling, and parallelism — and see how your choices trade off capability, stability, and compute."
+date: 2026-08-13
+guide: true
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Train an LLM — Decision Simulator</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-elev-2: #1c2128;
+    --border: #30363d;
+    --border-strong: #484f58;
+    --fg: #c9d1d9;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --orange: #f0883e;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font-family: var(--sans); font-size: 14px; line-height: 1.55; }
+  a { color: var(--blue); }
+  .mono { font-family: var(--mono); }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 2rem 1.1rem 5rem; }
+
+  .homelink { font-size: 0.8rem; }
+  header.top { margin: 0.6rem 0 1.2rem; }
+  header.top .kick { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--orange); }
+  header.top h1 { font-size: 1.7rem; margin: 0.3rem 0 0.4rem; color: #fff; }
+  header.top p { color: var(--fg-muted); margin: 0; max-width: 60ch; }
+
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 1.2rem; align-items: start; }
+  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+
+  /* progress rail */
+  .rail { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .rail .pip { font-size: 0.7rem; font-family: var(--mono); color: var(--fg-dim);
+    border: 1px solid var(--border); border-radius: 999px; padding: 0.15rem 0.55rem; }
+  .rail .pip.done { color: var(--green); border-color: var(--green); }
+  .rail .pip.cur { color: #fff; border-color: var(--border-strong); background: var(--bg-elev-2); }
+
+  /* stage card */
+  .card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1.15rem 1.2rem; }
+  .stage-tag { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue); font-family: var(--mono); }
+  .card h2 { font-size: 1.2rem; margin: 0.35rem 0 0.5rem; color: #fff; }
+  .ctx { color: var(--fg-muted); margin: 0 0 1rem; }
+  .ctx b { color: var(--fg); }
+
+  .choice { display: block; width: 100%; text-align: left; cursor: pointer;
+    background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.8rem 0.9rem; margin-bottom: 0.6rem; color: var(--fg); transition: all 120ms; font-size: 0.95rem; }
+  .choice:hover:not(:disabled) { border-color: var(--border-strong); transform: translateY(-1px); }
+  .choice:disabled { cursor: default; }
+  .choice .lab { display: block; font-weight: 600; color: #fff; }
+  .choice .blurb { display: block; color: var(--fg-muted); font-size: 0.86rem; margin-top: 0.45rem; }
+  .choice.picked { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(88,166,255,0.35) inset; }
+  .choice.dim { opacity: 0.5; }
+
+  .feedback { border-left: 3px solid var(--blue); background: var(--bg-elev-2);
+    padding: 0.7rem 0.9rem; border-radius: 0 8px 8px 0; margin: 0.6rem 0 0.2rem; }
+  .feedback.good { border-color: var(--green); }
+  .feedback.bad { border-color: var(--red); }
+  .feedback.warn { border-color: var(--yellow); }
+  .feedback .verdict-word { font-weight: 700; }
+  .feedback.good .verdict-word { color: var(--green); }
+  .feedback.bad .verdict-word { color: var(--red); }
+  .feedback.warn .verdict-word { color: var(--yellow); }
+  .delta { font-family: var(--mono); font-size: 0.78rem; margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .delta span { padding: 0.1rem 0.4rem; border-radius: 5px; background: var(--bg); border: 1px solid var(--border); }
+  .delta .up { color: var(--green); } .delta .down { color: var(--red); } .delta .flat { color: var(--fg-dim); }
+
+  .nextbar { margin-top: 0.9rem; display: flex; gap: 0.6rem; align-items: center; }
+  .btn { font-family: var(--sans); font-size: 0.9rem; cursor: pointer; background: var(--bg-elev-2);
+    color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem; transition: all 120ms; }
+  .btn:hover { border-color: var(--border-strong); }
+  .btn.primary { background: #238636; border-color: #2ea043; color: #fff; font-weight: 600; }
+  .btn.primary:hover { background: #2ea043; }
+
+  /* meters sidebar */
+  .side { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: 0.9rem; }
+  .meters { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; }
+  .meters h3 { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 0 0 0.8rem; }
+  .meter { margin-bottom: 0.85rem; }
+  .meter:last-child { margin-bottom: 0; }
+  .meter .mtop { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.25rem; }
+  .meter .mtop .name { color: var(--fg); }
+  .meter .mtop .num { font-family: var(--mono); color: var(--fg-muted); }
+  .track { height: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+  .fill { height: 100%; width: 0; transition: width 350ms ease, background 350ms; border-radius: 999px; }
+  .hint { font-size: 0.74rem; color: var(--fg-dim); margin-top: 0.2rem; }
+
+  .budget .fill { background: var(--purple); }
+
+  /* report card */
+  .report { background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 12px; padding: 1.2rem; }
+  .report h2 { margin: 0 0 0.3rem; color: #fff; font-size: 1.3rem; }
+  .report .grade { font-family: var(--mono); font-size: 2.2rem; font-weight: 700; }
+  .report ul { margin: 0.6rem 0 0; padding-left: 1.1rem; }
+  .report li { margin: 0.3rem 0; color: var(--fg-muted); }
+  .report li b { color: var(--fg); }
+
+  .discuss { border: 1px dashed var(--orange); border-radius: 10px; padding: 0.9rem 1.1rem;
+    margin: 1.3rem 0 0; background: rgba(240,136,62,0.06); }
+  .discuss h4 { font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--orange); margin: 0 0 0.5rem; }
+  .discuss ul { margin: 0; padding-left: 1.2rem; } .discuss li { margin: 0.35rem 0; }
+
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border);
+    font-size: 0.75rem; color: var(--fg-dim); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="homelink"><a href="{{ '/' | relative_url }}">&larr; All guides</a></p>
+  <header class="top">
+    <div class="kick">Decision Simulator</div>
+    <h1>Train an LLM</h1>
+    <p>You're the ML engineer. Make one call at each stage of the pre-training pipeline. Every choice trades off <b>capability</b>, training <b>stability</b>, and your <b>compute budget</b>. Get it to the finish line with a base model worth building on.</p>
+  </header>
+
+  <div class="layout">
+    <div>
+      <div class="rail" id="rail"></div>
+      <div id="stageHost"></div>
+    </div>
+
+    <aside class="side">
+      <div class="meters">
+        <h3>Model state</h3>
+        <div class="meter" id="m-cap">
+          <div class="mtop"><span class="name">Capability</span><span class="num"><span class="v">0</span>/100</span></div>
+          <div class="track"><div class="fill"></div></div>
+          <div class="hint">How good the model is at tasks</div>
+        </div>
+        <div class="meter" id="m-stab">
+          <div class="mtop"><span class="name">Stability</span><span class="num"><span class="v">100</span>/100</span></div>
+          <div class="track"><div class="fill"></div></div>
+          <div class="hint">Does training converge (not diverge)</div>
+        </div>
+        <div class="meter budget" id="m-budget">
+          <div class="mtop"><span class="name">Compute spent</span><span class="num"><span class="v">0</span>/100</span></div>
+          <div class="track"><div class="fill"></div></div>
+          <div class="hint">Run out and the run gets killed</div>
+        </div>
+      </div>
+      <button class="btn" id="restartBtn" style="display:none;">&#8635; Start over</button>
+    </aside>
+  </div>
+
+  <div class="discuss">
+    <h4>Use it to lead the discussion</h4>
+    <ul>
+      <li>Play it once making the &ldquo;obvious&rdquo; choices, then replay optimizing for a real model. What changed?</li>
+      <li>Which single stage had the biggest effect on the outcome, and why?</li>
+      <li>Notice the recurring tension: nearly every capability gain costs compute or risks stability. Where is that trade sharpest?</li>
+    </ul>
+  </div>
+
+  <footer>Mumtaz Fatima &middot; Created w Claude &middot; Hosted on GitHub Pages &middot; A teaching model, not a real trainer &mdash; numbers are illustrative</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Each stage: a real decision point in the LLM training pipeline.
+  // effects move meters; note teaches the "why". tag colors the feedback.
+  var STAGES = [
+    {
+      key: "Data",
+      tag: "Stage 1 / Data",
+      title: "How do you build the pre-training dataset?",
+      ctx: "Before any training, you need text. The size AND quality of this corpus set a ceiling on everything downstream. What's your data strategy?",
+      choices: [
+        { lab: "Scrape the whole web, feed it in raw",
+          blurb: "Maximum volume, zero cleaning.",
+          tag: "warn",
+          fx: { cap: +18, stab: -8, budget: +8 },
+          note: "Volume helps, but raw web data is full of duplicates, boilerplate, and toxic text. <b>Garbage in, garbage out:</b> the model learns the junk too, which shows up later as low-quality output. Duplicates also waste compute and can destabilize training." },
+        { lab: "Curate: dedup, filter quality, remove toxic content",
+          blurb: "A bit slower, much cleaner.",
+          tag: "good",
+          fx: { cap: +22, stab: +5, budget: +12 },
+          note: "This is a common high-quality strategy. <b>Deduplication and quality filtering</b> give more learning per token, reduce memorization of junk, and start you from a cleaner place. It costs some engineering time up front, but usually pays off as the model learns more efficiently." },
+        { lab: "Use a tiny, hand-picked clean set",
+          blurb: "Pristine, but small.",
+          tag: "warn",
+          fx: { cap: -8, stab: +6, budget: +2 },
+          note: "Clean is good, but LLMs are hungry: too little data and the model simply can't learn broad capabilities. You'll have a well-behaved but weak model. Scale of data matters, not just quality." }
+      ]
+    },
+    {
+      key: "Scale",
+      tag: "Stage 2 / Scaling",
+      title: "How do you spend a fixed compute budget: bigger model, or more data?",
+      ctx: "You have a set amount of compute. Scaling laws say there's a <b>compute-optimal</b> balance between model size (parameters) and how many tokens you train on. Which way do you lean?",
+      choices: [
+        { lab: "Go huge: giant model, relatively little data",
+          blurb: "Max parameters, fewer training tokens.",
+          tag: "bad",
+          fx: { cap: -6, stab: -6, budget: +30 },
+          note: "A common early mistake. A giant model trained on too few tokens is <b>undertrained</b> &mdash; it wastes parameters it never learned to use, and burns budget fast. The Chinchilla result showed many big models were badly under-trained on data." },
+        { lab: "Balance model size and data (compute-optimal)",
+          blurb: "Roughly scale tokens with parameters.",
+          tag: "good",
+          fx: { cap: +25, stab: +3, budget: +22 },
+          note: "The sweet spot from scaling laws: for a given compute budget, grow parameters and training tokens <b>together</b>. You get the most capability per dollar of compute here." },
+        { lab: "Go small: modest model, tons of data",
+          blurb: "Fewer parameters, train long.",
+          tag: "warn",
+          fx: { cap: +12, stab: +4, budget: +16 },
+          note: "Not wrong &mdash; small models trained on lots of data are cheap to run and surprisingly capable (this is why small, over-trained models are popular for deployment). But you leave some peak capability on the table versus the balanced point." }
+      ]
+    },
+    {
+      key: "Parallelism",
+      tag: "Stage 3 / Parallel training",
+      title: "The model no longer fits on one GPU. How do you split the work?",
+      ctx: "Your model and its optimizer state are too big for a single GPU's memory. You must distribute training across many GPUs. How?",
+      choices: [
+        { lab: "Just use one GPU anyway",
+          blurb: "Refuse to distribute.",
+          tag: "bad",
+          fx: { cap: -20, stab: -10, budget: +4 },
+          note: "It won't fit &mdash; you're forced to shrink the model or batch until it barely trains. This is exactly the memory wall that <b>parallelism</b> exists to solve." },
+        { lab: "Data parallelism only (replicate model, split the batch)",
+          blurb: "Each GPU has a full copy, different data.",
+          tag: "warn",
+          fx: { cap: +8, stab: +2, budget: +10 },
+          note: "Data parallelism splits the <i>batch</i> across GPUs and syncs gradients (all-reduce). Great for speed, but every GPU still stores the <b>full</b> model, gradients, and optimizer &mdash; so it doesn't help when the model itself is too big." },
+        { lab: "Combine data + model/tensor + pipeline parallelism (and ZeRO)",
+          blurb: "Split the model across GPUs too.",
+          tag: "good",
+          fx: { cap: +20, stab: +4, budget: +14 },
+          note: "The real answer for large models. <b>Tensor/model parallelism</b> splits individual layers across GPUs, <b>pipeline parallelism</b> puts different layers on different GPUs, and <b>ZeRO</b> shards the optimizer/gradients so no single GPU holds everything. Together they break the memory wall." }
+      ]
+    }
+  ];
+
+  var START = { cap: 0, stab: 100, budget: 0 };
+  var METER_MAX = 100;
+  var state, host, rail;
+
+  function clamp(v) { return Math.max(0, Math.min(METER_MAX, v)); }
+
+  function init() {
+    state = { idx: 0, meters: Object.assign({}, START), picks: [], done: false };
+    host = document.getElementById("stageHost");
+    rail = document.getElementById("rail");
+    document.getElementById("restartBtn").style.display = "none";
+    renderMeters(true);
+    renderRail();
+    renderStage();
+  }
+
+  function renderRail() {
+    rail.innerHTML = "";
+    STAGES.forEach(function (s, i) {
+      var p = document.createElement("span");
+      p.className = "pip" + (i < state.idx ? " done" : "") + (i === state.idx && !state.done ? " cur" : "");
+      p.textContent = (i + 1) + ". " + s.key;
+      rail.appendChild(p);
+    });
+    var end = document.createElement("span");
+    end.className = "pip" + (state.done ? " cur" : "");
+    end.textContent = "Ship";
+    rail.appendChild(end);
+  }
+
+  function renderStage() {
+    if (state.idx >= STAGES.length) { renderReport(); return; }
+    var s = STAGES[state.idx];
+    var card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML =
+      '<div class="stage-tag">' + s.tag + "</div>" +
+      "<h2>" + s.title + "</h2>" +
+      '<p class="ctx">' + s.ctx + "</p>" +
+      '<div class="choices"></div>' +
+      '<div class="fbhost"></div>';
+    var choicesEl = card.querySelector(".choices");
+    s.choices.forEach(function (c, ci) {
+      var b = document.createElement("button");
+      b.className = "choice";
+      b.innerHTML = '<span class="lab">' + c.lab + "</span><span class='blurb'>" + c.blurb + "</span>";
+      b.addEventListener("click", function () { choose(ci, card); });
+      choicesEl.appendChild(b);
+    });
+    host.innerHTML = "";
+    host.appendChild(card);
+  }
+
+  function choose(ci, card) {
+    var s = STAGES[state.idx];
+    var c = s.choices[ci];
+    var btns = card.querySelectorAll(".choice");
+    Array.prototype.forEach.call(btns, function (b, i) {
+      b.disabled = true;
+        if (i === ci) b.classList.add("picked");
+      else b.classList.add("dim");
+    });
+    // apply effects
+    var applied = {};
+    ["cap", "stab", "budget"].forEach(function (k) {
+      var d = c.fx[k] || 0;
+      applied[k] = d;
+      state.meters[k] = clamp(state.meters[k] + d);
+    });
+    state.picks.push({ stage: s.key, choice: c.lab, tag: c.tag, fx: applied });
+    renderMeters(false);
+
+    // feedback
+    var fb = card.querySelector(".fbhost");
+    fb.innerHTML =
+      '<div class="feedback">' +
+        '<span class="verdict-word">Tradeoff:</span> ' + c.note +
+        '<div class="delta">' + deltaChips(applied) + "</div>" +
+      "</div>" +
+      '<div class="nextbar"></div>';
+    var nb = fb.querySelector(".nextbar");
+    var next = document.createElement("button");
+    next.className = "btn primary";
+    var last = state.idx === STAGES.length - 1;
+    next.textContent = last ? "Ship the model \u2192" : "Next stage \u2192";
+    next.addEventListener("click", function () {
+      state.idx++;
+      renderRail();
+      renderStage();
+    });
+    nb.appendChild(next);
+  }
+
+  function deltaChips(applied) {
+    var names = { cap: "Capability", stab: "Stability", budget: "Compute" };
+    var out = "";
+    ["cap", "stab", "budget"].forEach(function (k) {
+      var d = applied[k] || 0;
+      if (d === 0) { out += '<span class="flat">' + names[k] + " 0</span>"; return; }
+      // For budget, spending more is "bad" -> show as down-colored
+      var positiveIsGood = k !== "budget";
+      var good = positiveIsGood ? d > 0 : false;
+      var cls = k === "budget" ? "down" : (d > 0 ? "up" : "down");
+      var sign = d > 0 ? "+" : "";
+      var label = k === "budget" ? (names[k] + " " + sign + d) : (names[k] + " " + sign + d);
+      out += '<span class="' + cls + '">' + label + "</span>";
+    });
+    return out;
+  }
+
+  function renderMeters(first) {
+    setMeter("m-cap", state.meters.cap, colorFor(state.meters.cap, false));
+    setMeter("m-stab", state.meters.stab, colorFor(state.meters.stab, false));
+    // budget: more spent is worse -> invert color logic
+    setMeter("m-budget", state.meters.budget, colorFor(100 - state.meters.budget, false), true);
+  }
+  function setMeter(id, val, color, isBudget) {
+    var el = document.getElementById(id);
+    el.querySelector(".v").textContent = Math.round(val);
+    var fill = el.querySelector(".fill");
+    fill.style.width = val + "%";
+    if (!isBudget) fill.style.background = color;
+  }
+  function colorFor(v, invert) {
+    if (v >= 66) return "var(--green)";
+    if (v >= 33) return "var(--yellow)";
+    return "var(--red)";
+  }
+
+  function renderReport() {
+    state.done = true;
+    renderRail();
+    var m = state.meters;
+    // grade
+    var effectiveBudget = 100 - m.budget; // remaining
+    var flags = [];
+    var failed = false;
+
+    if (m.stab <= 15) { flags.push({ t: "bad", s: "Training was unstable and nearly diverged. Stability = " + Math.round(m.stab) + "/100." }); if (m.stab <= 0) failed = true; }
+    else flags.push({ t: "good", s: "Training stayed stable (" + Math.round(m.stab) + "/100)." });
+
+    if (m.budget >= 100) { flags.push({ t: "bad", s: "You blew the entire compute budget." }); failed = true; }
+    else if (m.budget >= 80) flags.push({ t: "warn", s: "You spent most of the compute budget (" + Math.round(m.budget) + "/100). Cutting it close." });
+    else flags.push({ t: "good", s: "You stayed within budget (" + Math.round(m.budget) + "/100 spent)." });
+
+    if (m.cap >= 60) flags.push({ t: "good", s: "The model is genuinely capable (" + Math.round(m.cap) + "/100)." });
+    else if (m.cap >= 35) flags.push({ t: "warn", s: "The model is only moderately capable (" + Math.round(m.cap) + "/100)." });
+    else flags.push({ t: "bad", s: "The model is weak (" + Math.round(m.cap) + "/100) &mdash; it never learned enough." });
+
+    var overall = (m.cap * 0.5 + m.stab * 0.2 + effectiveBudget * 0.3);
+    var grade, gcolor, headline;
+    if (failed) { grade = "F"; gcolor = "var(--red)"; headline = "The run didn't make it."; }
+    else if (overall >= 72) { grade = "A"; gcolor = "var(--green)"; headline = "You pre-trained a strong base model."; }
+    else if (overall >= 58) { grade = "B"; gcolor = "var(--blue)"; headline = "A solid model with some rough edges."; }
+    else if (overall >= 44) { grade = "C"; gcolor = "var(--yellow)"; headline = "It works, but you left a lot on the table."; }
+    else { grade = "D"; gcolor = "var(--orange)"; headline = "Barely shippable."; }
+
+    var lis = flags.map(function (f) {
+      var mark = f.t === "good" ? "\u2713" : f.t === "bad" ? "\u2717" : "\u2013";
+      var col = f.t === "good" ? "var(--green)" : f.t === "bad" ? "var(--red)" : "var(--yellow)";
+      return '<li><b style="color:' + col + '">' + mark + "</b> " + f.s + "</li>";
+    }).join("");
+
+    var rec = state.picks.map(function (p) {
+      var col = p.tag === "good" ? "var(--green)" : p.tag === "bad" ? "var(--red)" : "var(--yellow)";
+      return '<li><span style="color:var(--fg-dim)">' + p.stage + ":</span> <span style='color:" + col + "'>" + p.choice + "</span></li>";
+    }).join("");
+
+    var card = document.createElement("div");
+    card.className = "report";
+    card.innerHTML =
+      '<div style="display:flex;align-items:center;gap:1rem;">' +
+        '<div class="grade" style="color:' + gcolor + '">' + grade + "</div>" +
+        "<div><h2>" + headline + "</h2>" +
+        '<div style="color:var(--fg-muted);font-size:0.85rem;">Overall score ' + Math.round(overall) + "/100</div></div>" +
+      "</div>" +
+      "<ul>" + lis + "</ul>" +
+      '<h3 style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-muted);margin:1rem 0 0.3rem;">Your decisions</h3>' +
+      '<ul style="list-style:none;padding-left:0;font-size:0.86rem;">' + rec + "</ul>";
+    host.innerHTML = "";
+    host.appendChild(card);
+    document.getElementById("restartBtn").style.display = "";
+  }
+
+  document.getElementById("restartBtn").addEventListener("click", init);
+  init();
+})();
+</script>
+</body>
+</html>
