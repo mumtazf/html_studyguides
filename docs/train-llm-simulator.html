@@ -146,7 +146,7 @@ guide: true
   <header class="top">
     <div class="kick">Decision Simulator</div>
     <h1>Train an LLM</h1>
-    <p>You're the ML engineer. Make one call at each stage of the pre-training pipeline. Every choice trades off <b>capability</b>, training <b>stability</b>, and your <b>compute budget</b> &mdash; and carries a real-world <b>dollar cost</b> you can estimate as you go. Change your mind anytime with <b>Back</b>. Get to the finish line with a base model worth building on.</p>
+    <p>You're the ML engineer. Make one call at each stage of the pre-training pipeline. Every choice trades off <b>capability</b>, training <b>stability</b>, and your <b>compute budget</b> &mdash; and carries an estimated <b>dollar cost</b> that adds up as you go. Change your mind anytime with <b>Back</b>. Get to the finish line with a base model worth building on.</p>
   </header>
 
   <div class="layout">
@@ -159,7 +159,7 @@ guide: true
       <div class="spend">
         <h3>Total spend</h3>
         <div class="spend-num" id="spendTotal">$0</div>
-        <div class="spend-hint">Sum of what you budgeted for each decision. Edit any amount as you go.</div>
+        <div class="spend-hint">Estimated dollars spent across the decisions you've made so far.</div>
       </div>
       <div class="meters">
         <h3>Model state</h3>
@@ -181,16 +181,6 @@ guide: true
       </div>
       <button class="btn" id="restartBtn" style="display:none;">&#8635; Start over</button>
     </aside>
-  </div>
-
-  <div class="discuss">
-    <h4>Use it to lead the discussion</h4>
-    <ul>
-      <li>Before revealing each tradeoff, have the group <b>guess the dollar cost</b> and type it in. How close were they to the reference?</li>
-      <li>Play once optimizing purely for capability, then replay on a tight budget using <b>Back</b> to change calls. What did you sacrifice?</li>
-      <li>Which single stage moved the total spend the most, and was it worth it?</li>
-      <li>Notice the recurring tension: nearly every capability gain costs compute or dollars or risks stability. Where is that trade sharpest?</li>
-    </ul>
   </div>
 
   <footer>Mumtaz Fatima &middot; Created w Claude &middot; Hosted on GitHub Pages &middot; A teaching model, not a real trainer &mdash; numbers are illustrative</footer>
@@ -265,7 +255,7 @@ guide: true
       key: "Parallelism",
       tag: "Stage 3 / Parallel training",
       title: "The model no longer fits on one GPU. How do you split the work?",
-      ctx: "Your model and its optimizer state are too big for a single GPU's memory. You must distribute training across many GPUs. How?",
+      ctx: "Your model and its optimizer state are too big for a single GPU's memory. You must distribute training across many GPUs &mdash; and each step you add breaks a different bottleneck. How far do you go?",
       choices: [
         { lab: "Just use one GPU anyway",
           blurb: "Refuse to distribute.",
@@ -280,14 +270,21 @@ guide: true
           cost: 2000000,
           costNote: "Simple to run, but you rent a lot of GPUs that each hold a full copy.",
           fx: { cap: +8, stab: +2, budget: +10 },
-          note: "Data parallelism splits the <i>batch</i> across GPUs and syncs gradients (all-reduce). Great for speed, but every GPU still stores the <b>full</b> model, gradients, and optimizer &mdash; so it doesn't help when the model itself is too big." },
-        { lab: "Combine data + model/tensor + pipeline parallelism (and ZeRO)",
-          blurb: "Split the model across GPUs too.",
+          note: "Data parallelism splits the <i>batch</i> across GPUs and syncs gradients (all-reduce). Great for throughput, but every GPU still stores the <b>full</b> model, gradients, and optimizer &mdash; so it doesn't help when the model itself is too big." },
+        { lab: "Add ZeRO / FSDP sharding on top of data parallelism",
+          blurb: "Stop replicating: shard optimizer, gradients, then weights.",
           tag: "good",
-          cost: 4000000,
-          costNote: "More engineering and interconnect, but it actually fits and trains.",
-          fx: { cap: +20, stab: +4, budget: +14 },
-          note: "The real answer for large models. <b>Tensor/model parallelism</b> splits individual layers across GPUs, <b>pipeline parallelism</b> puts different layers on different GPUs, and <b>ZeRO</b> shards the optimizer/gradients so no single GPU holds everything. Together they break the memory wall." }
+          cost: 3000000,
+          costNote: "Almost free memory savings — just more communication between GPUs.",
+          fx: { cap: +16, stab: +4, budget: +12 },
+          note: "The first big improvement. Plain data parallelism wastes memory by <b>replicating</b> everything. ZeRO (a.k.a. FSDP) <b>shards</b> the optimizer state, gradients, and eventually the weights across GPUs, so no single GPU holds a full copy. You fit a much bigger model with the same hardware, paying only in extra communication." },
+        { lab: "Go full 3D: data + tensor + pipeline parallelism (with ZeRO)",
+          blurb: "Also split individual layers and stages across GPUs.",
+          tag: "good",
+          cost: 4500000,
+          costNote: "Most engineering and fastest interconnect, but scales to the largest models.",
+          fx: { cap: +22, stab: +5, budget: +16 },
+          note: "The frontier-scale answer. On top of sharding, <b>tensor parallelism</b> splits a single layer's math across GPUs and <b>pipeline parallelism</b> puts different layers on different GPUs. Combined (\u201c3D parallelism\u201d), they train models far too big for any other approach &mdash; but they demand fast interconnect (NVLink/InfiniBand) and careful tuning to avoid pipeline bubbles." }
       ]
     }
   ];
@@ -379,11 +376,7 @@ guide: true
   }
 
   function choose(ci) {
-    var prev = state.picks[state.idx];
-    var c = STAGES[state.idx].choices[ci];
-    // keep an edited cost if they re-pick the same choice, else reset to default
-    var cost = (prev && prev.ci === ci && typeof prev.cost === "number") ? prev.cost : c.cost;
-    state.picks[state.idx] = { stageIdx: state.idx, ci: ci, cost: cost };
+    state.picks[state.idx] = { stageIdx: state.idx, ci: ci, cost: STAGES[state.idx].choices[ci].cost };
     recompute();
     renderMeters(false);
     renderStage();
@@ -403,23 +396,11 @@ guide: true
         '<div class="delta">' + deltaChips(applied) + "</div>" +
       "</div>" +
       '<div class="costrow">' +
-        '<label for="costInput">What would you budget for this decision?</label>' +
-        '<span class="dollar"><span>$</span><input id="costInput" type="text" inputmode="numeric" value="' +
-          (typeof pick.cost === "number" ? pick.cost.toLocaleString() : "") + '" /></span>' +
-        '<span class="cn">' + (c.costNote || "") + " <em>Illustrative reference: " + fmtMoney(c.cost) + ".</em></span>" +
+        '<label>Estimated cost of this decision</label>' +
+        '<span class="dollar"><span>' + fmtMoney(c.cost) + "</span></span>" +
+        '<span class="cn">' + (c.costNote || "") + "</span>" +
       "</div>" +
       '<div class="nextbar"></div>';
-
-    var input = fb.querySelector("#costInput");
-    input.addEventListener("input", function () {
-      var digits = input.value.replace(/[^0-9]/g, "");
-      pick.cost = digits === "" ? 0 : parseInt(digits, 10);
-      recompute();
-      renderMeters(false);
-    });
-    input.addEventListener("blur", function () {
-      input.value = (pick.cost || 0).toLocaleString();
-    });
 
     renderNav(card, true);
   }
@@ -543,10 +524,10 @@ guide: true
         '<div style="color:var(--fg-muted);font-size:0.85rem;">Overall score ' + Math.round(overall) + "/100</div></div>" +
       "</div>" +
       "<ul>" + lis + "</ul>" +
-      '<h3 style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-muted);margin:1rem 0 0.3rem;">Your decisions &amp; budgeted cost</h3>' +
+      '<h3 style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-muted);margin:1rem 0 0.3rem;">Your decisions &amp; estimated cost</h3>' +
       '<ul style="list-style:none;padding-left:0;font-size:0.86rem;">' + rec + "</ul>" +
       '<div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--border);font-size:0.95rem;">' +
-        'Total budgeted spend: <b style="color:var(--green);font-family:var(--mono)">' + fmtMoney(state.totalCost) + "</b></div>" +
+        'Total estimated spend: <b style="color:var(--green);font-family:var(--mono)">' + fmtMoney(state.totalCost) + "</b></div>" +
       '<div class="nextbar" id="reportNav"></div>';
     host.innerHTML = "";
     host.appendChild(card);
