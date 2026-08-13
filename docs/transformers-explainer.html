@@ -1,0 +1,689 @@
+---
+title: "How Transformers Work — a high-level walkthrough"
+description: "An interactive, discussion-ready tour of the transformer: tokens, embeddings, positional info, self-attention, multi-head attention, and next-token prediction."
+date: 2026-08-12
+guide: true
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>How Transformers Work</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #171a22;
+    --card-2: #1e222c;
+    --text: #e7e3d8;
+    --muted: #9a9485;
+    --border: #2a2f3a;
+    --accent: #d6a066;
+    --accent-2: #7ab8f5;
+    --hot: #e8734a;
+    --cool: #3a4152;
+    --good: #57c98a;
+    --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1.6;
+    padding: 2.5rem 1.25rem 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 52rem; margin: 0 auto; }
+  a { color: var(--accent-2); }
+
+  .kicker {
+    font-family: var(--font-sans);
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 0.6rem;
+  }
+  h1 { font-size: 2.1rem; line-height: 1.15; margin: 0 0 0.6rem; letter-spacing: -0.01em; }
+  .lede { color: var(--muted); font-size: 1.05rem; margin: 0 0 1.5rem; }
+
+  /* progress / stepper */
+  .stepper {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    font-family: var(--font-sans); font-size: 0.78rem;
+    margin: 1.5rem 0 2rem; padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .stepper button {
+    font-family: inherit; font-size: inherit;
+    background: var(--card); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 0.35rem 0.8rem; cursor: pointer; transition: all 120ms;
+  }
+  .stepper button:hover { color: var(--text); border-color: var(--accent); }
+  .stepper button.active { background: var(--accent); color: #1a140c; border-color: var(--accent); font-weight: 600; }
+
+  section.step { display: none; animation: fade 220ms ease; }
+  section.step.show { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .step-head { display: flex; align-items: baseline; gap: 0.6rem; margin: 0 0 0.4rem; }
+  .step-num {
+    font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent);
+    border: 1px solid var(--border); border-radius: 6px; padding: 0.1rem 0.45rem;
+  }
+  h2 { font-size: 1.5rem; margin: 0.4rem 0 0.6rem; letter-spacing: -0.005em; }
+  p { margin: 0.7rem 0; }
+  .muted { color: var(--muted); }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem; margin: 1.25rem 0;
+  }
+  .panel h3 { font-family: var(--font-sans); font-size: 0.78rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.9rem; }
+
+  input[type=text] {
+    width: 100%; font-family: var(--font-mono); font-size: 0.95rem;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.75rem;
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+  .btn {
+    font-family: var(--font-sans); font-size: 0.85rem; cursor: pointer;
+    background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.85rem;
+    transition: all 120ms;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.on { background: var(--accent); color: #1a140c; border-color: var(--accent); font-weight: 600; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+
+  /* token chips */
+  .tokens { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.9rem; }
+  .tok {
+    font-family: var(--font-mono); font-size: 0.85rem;
+    padding: 0.3rem 0.55rem; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--card-2);
+    cursor: pointer; transition: transform 100ms;
+  }
+  .tok:hover { transform: translateY(-2px); }
+  .tok.sel { outline: 2px solid var(--accent); }
+
+  /* embedding bars */
+  .embed { display: flex; gap: 3px; align-items: flex-end; height: 48px; margin-top: 0.5rem; }
+  .embed span { flex: 1; border-radius: 2px 2px 0 0; }
+
+  /* attention grid */
+  .attn-wrap { overflow-x: auto; }
+  table.attn { border-collapse: collapse; font-family: var(--font-mono); font-size: 0.72rem; margin-top: 0.6rem; }
+  table.attn th { color: var(--muted); font-weight: 500; padding: 0.25rem 0.35rem; white-space: nowrap; }
+  table.attn th.rowh { text-align: right; }
+  table.attn td {
+    width: 34px; height: 34px; text-align: center; vertical-align: middle;
+    border-radius: 4px; color: #0d0f14; cursor: default; transition: outline 100ms;
+  }
+  table.attn tr.qrow.active th.rowh { color: var(--accent); font-weight: 700; }
+  table.attn td.qcell.dim { opacity: 0.18; }
+
+  .legend { display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-sans);
+    font-size: 0.72rem; color: var(--muted); margin-top: 0.7rem; }
+  .legend .bar { height: 10px; width: 120px; border-radius: 5px;
+    background: linear-gradient(90deg, var(--cool), var(--accent), var(--hot)); }
+
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--card);
+    padding: 0.8rem 1rem; border-radius: 0 8px 8px 0; margin: 1.2rem 0;
+  }
+  .discuss {
+    border: 1px dashed var(--accent); border-radius: 10px;
+    padding: 0.9rem 1.1rem; margin: 1.3rem 0; background: rgba(214,160,102,0.06);
+  }
+  .discuss h4 { font-family: var(--font-sans); font-size: 0.74rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.5rem; }
+  .discuss ul { margin: 0; padding-left: 1.2rem; }
+  .discuss li { margin: 0.35rem 0; }
+
+  .flow { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; }
+  .flow .box {
+    font-family: var(--font-sans); font-size: 0.85rem;
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.9rem;
+    background: var(--card-2); position: relative;
+  }
+  .flow .box b { color: var(--accent-2); }
+  .flow .arrow { text-align: center; color: var(--muted); font-size: 0.9rem; }
+  .stack-note { font-family: var(--font-sans); font-size: 0.78rem; color: var(--muted); }
+
+  .nav { display: flex; justify-content: space-between; margin-top: 2rem;
+    padding-top: 1.2rem; border-top: 1px solid var(--border); }
+
+  code { font-family: var(--font-mono); font-size: 0.88em;
+    background: var(--card-2); padding: 0.08rem 0.35rem; border-radius: 4px; }
+
+  footer { margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid var(--border);
+    font-family: var(--font-sans); font-size: 0.75rem; color: var(--muted); text-align: center; }
+
+  .homelink { font-family: var(--font-sans); font-size: 0.8rem; }
+  .barlabels { display:flex; justify-content:space-between; font-family:var(--font-sans);
+    font-size:0.68rem; color:var(--muted); margin-top:0.3rem; }
+</style>
+</head>
+<body>
+<main>
+  <p class="homelink"><a href="{{ '/' | relative_url }}">&larr; All guides</a></p>
+  <p class="kicker">Discussion primer</p>
+  <h1>How Transformers Work</h1>
+  <p class="lede">A high-level, click-through tour of the architecture behind modern LLMs. Enough to hold a room &mdash; the deeper math can come later.</p>
+
+  <nav class="stepper" id="stepper"></nav>
+
+  <!-- STEP 0 -->
+  <section class="step" data-title="Big picture">
+    <div class="step-head"><span class="step-num">00</span><h2>The one-sentence version</h2></div>
+    <p>A transformer takes a sequence of words and, at every position, lets each word <b>look at every other word</b> to build a context-aware understanding. Stack that operation many times and you get a model that can predict what comes next.</p>
+    <div class="panel">
+      <h3>The pipeline</h3>
+      <div class="flow">
+        <div class="box"><b>1. Tokenize</b> — chop text into tokens (word-ish pieces)</div>
+        <div class="arrow">&darr;</div>
+        <div class="box"><b>2. Embed</b> — turn each token into a vector of numbers</div>
+        <div class="arrow">&darr;</div>
+        <div class="box"><b>3. Add position</b> — mark <i>where</i> each token sits in the sequence</div>
+        <div class="arrow">&darr;</div>
+        <div class="box"><b>4. Self-attention</b> — every token gathers info from the others</div>
+        <div class="arrow">&darr;</div>
+        <div class="box"><b>5. Feed-forward + repeat</b> — refine, then stack the whole block N times</div>
+        <div class="arrow">&darr;</div>
+        <div class="box"><b>6. Predict</b> — output a probability for the next token</div>
+      </div>
+    </div>
+    <div class="callout">The famous idea from <i>“Attention Is All You Need”</i> (2017): drop recurrence entirely and let <b>attention</b> do the heavy lifting. That's what makes transformers so parallelizable — and so good.</div>
+    <div class="discuss">
+      <h4>Kick off the discussion</h4>
+      <ul>
+        <li>Before this, models read text one word at a time (RNNs). What might be hard about that?</li>
+        <li>What does it buy us to let every word see every other word <i>at once</i>?</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- STEP 1 -->
+  <section class="step" data-title="Tokens &amp; embeddings">
+    <div class="step-head"><span class="step-num">01</span><h2>Tokens &amp; embeddings</h2></div>
+    <p>Models don't see letters — they see <b>tokens</b>, then convert each token into a vector (a list of numbers) called an <b>embedding</b>. Similar meanings end up with similar vectors.</p>
+    <div class="panel">
+      <h3>Try it — type a sentence</h3>
+      <input type="text" id="sentence" value="the cat sat on the mat" />
+      <div class="tokens" id="tokList"></div>
+      <p class="muted" id="tokHint" style="font-size:0.85rem;margin-top:0.8rem;">Click a token to see its (illustrative) embedding vector.</p>
+      <div id="embedBox" style="display:none;">
+        <div class="embed" id="embedBars"></div>
+        <div class="barlabels"><span>dim 0</span><span id="embedTok"></span><span>dim 15</span></div>
+      </div>
+    </div>
+    <div class="callout">Real embeddings have hundreds or thousands of dimensions and are <b>learned</b> from data. The bars here are illustrative — the point is: every token becomes a point in a high-dimensional space.</div>
+    <div class="discuss">
+      <h4>Talking point</h4>
+      <ul><li>Why is “a list of numbers” a better representation for a computer than the raw word?</li></ul>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="step" data-title="Position">
+    <div class="step-head"><span class="step-num">02</span><h2>Where's the word? Positional information</h2></div>
+    <p>Attention looks at all tokens at once — so on its own it has <b>no sense of order</b>. To the model, a sentence is a <i>bag</i> of word vectors. So before attention, we <b>add a positional signal</b> to each token's embedding: same word, different slot &rarr; different vector.</p>
+
+    <div class="panel">
+      <h3>Why we need it — “dog bites man”</h3>
+      <p class="muted" style="font-size:0.85rem;">Swap the words. Without position, the model sees the same set of vectors either way. Add position and each slot becomes distinct.</p>
+      <div class="row" style="margin:0.7rem 0;">
+        <button class="btn" id="swapBtn">Swap word order</button>
+        <button class="btn on" id="posToggle">Positional signal: <b>on</b></button>
+      </div>
+      <div id="orderDemo" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+    </div>
+
+    <div class="panel">
+      <h3>What the signal looks like — position &times; dimension</h3>
+      <p class="muted" style="font-size:0.85rem;">Every <b>row</b> is one position's fingerprint; every <b>column</b> is one dimension. Left columns are slow waves, right columns are fast. Slide to highlight a position.</p>
+      <div class="row" style="margin:0.6rem 0;">
+        <label style="font-family:var(--font-sans);font-size:0.82rem;color:var(--muted);">Highlight position: <b id="posVal" style="color:var(--accent-2)">0</b></label>
+        <input type="range" id="posSlider" min="0" max="19" value="0" style="flex:1;min-width:180px;" />
+      </div>
+      <div class="attn-wrap"><div id="posMatrix"></div></div>
+      <div class="legend"><span>&minus;1</span><span class="bar" style="background:linear-gradient(90deg,#7ab8f5,#1e222c,#e8734a);"></span><span>+1</span></div>
+      <p class="muted" id="posReadout" style="font-size:0.82rem;margin-top:0.7rem;"></p>
+    </div>
+    <div class="callout">The original paper uses sine/cosine waves of different frequencies. Two things fall out of this: every position gets a <b>unique</b> pattern, and <b>nearby positions look similar</b> — so the model can also sense <i>how far apart</i> two tokens are. Modern models use variants (learned or rotary), but the goal is identical.</div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="step" data-title="Self-attention">
+    <div class="step-head"><span class="step-num">03</span><h2>Self-attention: the heart of it</h2></div>
+    <p>Every token asks a <b>Query</b> (“what am I looking for?”), and every token offers a <b>Key</b> (“here's what I am”). Match a query against all keys to get <b>attention weights</b> — how much each token should pull from every other. Those weights then blend the <b>Values</b>.</p>
+    <div class="panel">
+      <h3>Attention map — click a row (a query token)</h3>
+      <p class="muted" style="font-size:0.85rem;">Each row shows where that token “looks.” Brighter = more attention. Weights in a row add to 1.</p>
+      <div class="row" style="margin:0.7rem 0;">
+        <button class="btn" id="maskBtn">Causal mask: <b>off</b></button>
+        <button class="btn" id="reseedBtn">Reshuffle</button>
+      </div>
+      <div class="attn-wrap"><div id="attnGrid"></div></div>
+      <div class="legend"><span>less</span><span class="bar"></span><span>more attention</span></div>
+    </div>
+    <div class="callout"><b>Causal mask</b> forces each token to only look at itself and earlier tokens — never the future. That's what lets a model <i>generate</i> text left-to-right. (You built a whole guide on this — see the Attention Mask Explorer.)</div>
+    <div class="discuss">
+      <h4>Talking points</h4>
+      <ul>
+        <li>Turn the mask on — how does the shape of the map change, and why?</li>
+        <li>For the word “it” in a sentence, which earlier words <i>should</i> it attend to?</li>
+        <li>Q, K, and V are three different learned “views” of the same token. Why not just use the raw embedding for all three?</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="step" data-title="Multi-head">
+    <div class="step-head"><span class="step-num">04</span><h2>Many heads, many perspectives</h2></div>
+    <p>One attention map captures one kind of relationship. <b>Multi-head attention</b> runs several in parallel — each head can specialize (one tracks grammar, another tracks who-did-what, etc.) — then combines them.</p>
+    <div class="panel">
+      <h3>Switch between heads</h3>
+      <div class="row" id="headBtns" style="margin-bottom:0.6rem;"></div>
+      <div class="attn-wrap"><div id="headGrid"></div></div>
+      <p class="muted" style="font-size:0.82rem;margin-top:0.7rem;">Same sentence, different head — notice each one lights up a different pattern.</p>
+    </div>
+    <div class="callout">In practice a model might have 12, 32, or 96 heads per layer. More heads = more relationship types the model can track simultaneously.</div>
+  </section>
+
+  <!-- STEP 5 -->
+  <section class="step" data-title="Blocks &amp; output">
+    <div class="step-head"><span class="step-num">05</span><h2>Stack the blocks, then predict</h2></div>
+    <p>After attention, each token passes through a small <b>feed-forward network</b> that refines it. Two more tricks keep training stable:</p>
+    <div class="panel">
+      <h3>One transformer block</h3>
+      <div class="flow">
+        <div class="box"><b>Multi-head self-attention</b> — mix information across tokens</div>
+        <div class="arrow">&darr; <span class="stack-note">+ residual connection (add the input back) &amp; layer-norm</span></div>
+        <div class="box"><b>Feed-forward network</b> — refine each token on its own</div>
+        <div class="arrow">&darr; <span class="stack-note">+ residual &amp; layer-norm again</span></div>
+        <div class="box">Output &rarr; feeds into the next identical block</div>
+      </div>
+      <p class="muted" style="font-size:0.85rem;margin-top:0.9rem;"><b>Residual connections</b> give gradients a shortcut so very deep stacks still train. <b>Layer-norm</b> keeps the numbers well-behaved.</p>
+    </div>
+    <div class="panel">
+      <h3>Stacking</h3>
+      <div class="row" style="margin-bottom:0.6rem;">
+        <label style="font-family:var(--font-sans);font-size:0.82rem;color:var(--muted);">Layers: <b id="layerVal" style="color:var(--accent-2)">6</b></label>
+        <input type="range" id="layerSlider" min="1" max="48" value="6" style="flex:1;min-width:180px;" />
+      </div>
+      <div id="layerStack" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+      <p class="muted" style="font-size:0.82rem;margin-top:0.7rem;" id="layerHint"></p>
+    </div>
+    <div class="callout">The final block's output at the last position goes through one more layer that produces a <b>probability for every possible next token</b>. Pick one, append it, and repeat — that's text generation.</div>
+    <div class="discuss">
+      <h4>Wrap-up questions</h4>
+      <ul>
+        <li>Early layers tend to learn simple patterns; later layers learn abstract meaning. Why might depth create that hierarchy?</li>
+        <li>If generation is just “predict the next token” over and over, where does the appearance of <i>reasoning</i> come from?</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="nav">
+    <button class="btn" id="prevBtn">&larr; Previous</button>
+    <button class="btn" id="nextBtn">Next &rarr;</button>
+  </div>
+
+  <footer>Mumtaz Fatima · Created w Claude · Hosted on GitHub Pages · High-level primer, adapted for discussion</footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- tiny deterministic PRNG ----------
+  function hashStr(s) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---------- stepper ----------
+  var steps = Array.prototype.slice.call(document.querySelectorAll("section.step"));
+  var stepper = document.getElementById("stepper");
+  var cur = 0;
+  steps.forEach(function (s, i) {
+    var b = document.createElement("button");
+    b.textContent = (i) + " · " + s.dataset.title;
+    b.addEventListener("click", function () { go(i); });
+    stepper.appendChild(b);
+  });
+  function go(i) {
+    cur = Math.max(0, Math.min(steps.length - 1, i));
+    steps.forEach(function (s, k) { s.classList.toggle("show", k === cur); });
+    Array.prototype.forEach.call(stepper.children, function (b, k) { b.classList.toggle("active", k === cur); });
+    document.getElementById("prevBtn").disabled = cur === 0;
+    document.getElementById("nextBtn").disabled = cur === steps.length - 1;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  document.getElementById("prevBtn").addEventListener("click", function () { go(cur - 1); });
+  document.getElementById("nextBtn").addEventListener("click", function () { go(cur + 1); });
+
+  // ---------- Step 1: tokens & embeddings ----------
+  var DIM = 16;
+  function embedFor(tok) {
+    var r = mulberry32(hashStr(tok.toLowerCase()));
+    var v = [];
+    for (var i = 0; i < DIM; i++) v.push(r() * 2 - 1);
+    return v;
+  }
+  function tokenize(str) {
+    return str.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  }
+  var sentenceEl = document.getElementById("sentence");
+  var tokListEl = document.getElementById("tokList");
+  var embedBox = document.getElementById("embedBox");
+  var embedBars = document.getElementById("embedBars");
+  var embedTok = document.getElementById("embedTok");
+
+  function renderTokens() {
+    var toks = tokenize(sentenceEl.value);
+    tokListEl.innerHTML = "";
+    embedBox.style.display = "none";
+    toks.forEach(function (t, idx) {
+      var el = document.createElement("span");
+      el.className = "tok";
+      el.textContent = t;
+      el.addEventListener("click", function () {
+        Array.prototype.forEach.call(tokListEl.children, function (c) { c.classList.remove("sel"); });
+        el.classList.add("sel");
+        showEmbed(t);
+      });
+      tokListEl.appendChild(el);
+    });
+  }
+  function heatColor(w) { // 0..1 -> cool->accent->hot
+    var c1 = [58, 65, 82], c2 = [214, 160, 102], c3 = [232, 115, 74];
+    var a, b, tt;
+    if (w < 0.5) { a = c1; b = c2; tt = w / 0.5; } else { a = c2; b = c3; tt = (w - 0.5) / 0.5; }
+    return "rgb(" + Math.round(a[0] + (b[0]-a[0])*tt) + "," + Math.round(a[1]+(b[1]-a[1])*tt) + "," + Math.round(a[2]+(b[2]-a[2])*tt) + ")";
+  }
+  function showEmbed(t) {
+    var v = embedFor(t);
+    embedBars.innerHTML = "";
+    v.forEach(function (x) {
+      var s = document.createElement("span");
+      var mag = Math.abs(x);
+      s.style.height = (12 + mag * 36) + "px";
+      s.style.background = heatColor((x + 1) / 2);
+      embedBars.appendChild(s);
+    });
+    embedTok.textContent = '"' + t + '"';
+    embedBox.style.display = "block";
+  }
+  sentenceEl.addEventListener("input", renderTokens);
+  renderTokens();
+
+  // ---------- Step 2: positional encoding ----------
+  var POS_N = 20;
+  function posEncode(pos) {
+    var v = [];
+    for (var i = 0; i < DIM; i++) {
+      var freq = 1 / Math.pow(10000, (2 * Math.floor(i / 2)) / DIM);
+      v.push((i % 2 === 0) ? Math.sin(pos * freq) : Math.cos(pos * freq));
+    }
+    return v;
+  }
+  // diverging color: blue (neg) -> card bg (0) -> orange (pos)
+  function divColor(v) {
+    var base = v >= 0 ? [232, 115, 74] : [122, 184, 245];
+    var bg = [30, 34, 44], m = Math.min(1, Math.abs(v));
+    return "rgb(" + Math.round(bg[0] + (base[0]-bg[0])*m) + "," +
+      Math.round(bg[1] + (base[1]-bg[1])*m) + "," + Math.round(bg[2] + (base[2]-bg[2])*m) + ")";
+  }
+
+  var posSlider = document.getElementById("posSlider");
+  var posVal = document.getElementById("posVal");
+  var posMatrix = document.getElementById("posMatrix");
+  var posReadout = document.getElementById("posReadout");
+
+  function buildPosMatrix() {
+    var tbl = document.createElement("table");
+    tbl.className = "attn";
+    var head = document.createElement("tr");
+    var corner = document.createElement("th"); corner.textContent = "pos"; head.appendChild(corner);
+    for (var d = 0; d < DIM; d++) { var th = document.createElement("th"); th.textContent = d; head.appendChild(th); }
+    tbl.appendChild(head);
+    for (var p = 0; p < POS_N; p++) {
+      var v = posEncode(p);
+      var tr = document.createElement("tr"); tr.className = "qrow"; tr.dataset.pos = p;
+      var rh = document.createElement("th"); rh.className = "rowh"; rh.textContent = p; tr.appendChild(rh);
+      for (var c = 0; c < DIM; c++) {
+        var td = document.createElement("td");
+        td.style.background = divColor(v[c]);
+        td.style.width = "22px"; td.style.height = "22px";
+        tr.appendChild(td);
+      }
+      tbl.appendChild(tr);
+    }
+    posMatrix.innerHTML = "";
+    posMatrix.appendChild(tbl);
+  }
+  function dist(a, b) {
+    var s = 0; for (var i = 0; i < a.length; i++) { var d = a[i]-b[i]; s += d*d; } return Math.sqrt(s);
+  }
+  function highlightPos() {
+    var pos = parseInt(posSlider.value, 10);
+    posVal.textContent = pos;
+    Array.prototype.forEach.call(posMatrix.querySelectorAll("tr.qrow"), function (tr) {
+      tr.classList.toggle("active", parseInt(tr.dataset.pos, 10) === pos);
+    });
+    var here = posEncode(pos);
+    var near = dist(here, posEncode(Math.min(POS_N - 1, pos + 1))).toFixed(2);
+    var far = dist(here, posEncode((pos + 10) % POS_N)).toFixed(2);
+    posReadout.innerHTML = "Distance from position " + pos + " to its <b>neighbour</b>: " + near +
+      " &nbsp;·&nbsp; to a <b>far</b> position: " + far + " — nearby slots stay close, distant ones drift apart.";
+  }
+  buildPosMatrix();
+  posSlider.addEventListener("input", highlightPos);
+  highlightPos();
+
+  // order-matters mini demo
+  var swapBtn = document.getElementById("swapBtn");
+  var posToggle = document.getElementById("posToggle");
+  var orderDemo = document.getElementById("orderDemo");
+  var orderWords = ["dog", "bites", "man"];
+  var posOn = true;
+  function miniVec(word, slot) {
+    var e = embedFor(word);
+    if (posOn) { var pe = posEncode(slot); for (var i = 0; i < DIM; i++) e[i] += pe[i]; }
+    return e;
+  }
+  function renderOrderDemo() {
+    orderDemo.innerHTML = "";
+    orderWords.forEach(function (w, slot) {
+      var vec = miniVec(w, slot);
+      var row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:0.6rem;";
+      var label = document.createElement("span");
+      label.style.cssText = "font-family:var(--font-mono);font-size:0.8rem;width:96px;color:var(--muted);";
+      label.innerHTML = "slot " + slot + " · <b style='color:var(--text)'>" + w + "</b>";
+      var bars = document.createElement("div");
+      bars.className = "embed"; bars.style.height = "34px"; bars.style.flex = "1";
+      vec.forEach(function (x) {
+        var s = document.createElement("span");
+        s.style.height = (6 + (Math.min(1.5, Math.abs(x)) / 1.5) * 26) + "px";
+        s.style.background = divColor(Math.max(-1, Math.min(1, x)));
+        bars.appendChild(s);
+      });
+      row.appendChild(label); row.appendChild(bars);
+      orderDemo.appendChild(row);
+    });
+  }
+  swapBtn.addEventListener("click", function () { orderWords.reverse(); renderOrderDemo(); });
+  posToggle.addEventListener("click", function () {
+    posOn = !posOn;
+    this.innerHTML = "Positional signal: <b>" + (posOn ? "on" : "off") + "</b>";
+    this.classList.toggle("on", posOn);
+    renderOrderDemo();
+  });
+  renderOrderDemo();
+
+  // ---------- Step 3 & 4: attention ----------
+  var ATT_SENTENCE = ["the", "cat", "sat", "on", "the", "mat"];
+  var masked = false;
+  var attnSeed = 7;
+
+  function softmaxRow(scores) {
+    var m = Math.max.apply(null, scores.filter(function (x) { return isFinite(x); }));
+    var exps = scores.map(function (x) { return isFinite(x) ? Math.exp(x - m) : 0; });
+    var sum = exps.reduce(function (a, b) { return a + b; }, 0) || 1;
+    return exps.map(function (e) { return e / sum; });
+  }
+  // build a QK-based attention matrix from small per-token vectors
+  function attentionMatrix(seed, useMask) {
+    var n = ATT_SENTENCE.length, d = 6;
+    var r = mulberry32(seed);
+    var Q = [], K = [];
+    for (var i = 0; i < n; i++) {
+      var q = [], k = [];
+      for (var j = 0; j < d; j++) { q.push(r() * 2 - 1); k.push(r() * 2 - 1); }
+      Q.push(q); K.push(k);
+    }
+    var M = [];
+    for (var i2 = 0; i2 < n; i2++) {
+      var scores = [];
+      for (var j2 = 0; j2 < n; j2++) {
+        if (useMask && j2 > i2) { scores.push(-Infinity); continue; }
+        var dot = 0;
+        for (var t = 0; t < d; t++) dot += Q[i2][t] * K[j2][t];
+        scores.push(dot / Math.sqrt(d));
+      }
+      M.push(softmaxRow(scores));
+    }
+    return M;
+  }
+  function buildAttnTable(M, container) {
+    var n = ATT_SENTENCE.length;
+    var tbl = document.createElement("table");
+    tbl.className = "attn";
+    // header
+    var thead = document.createElement("tr");
+    thead.appendChild(document.createElement("th"));
+    ATT_SENTENCE.forEach(function (w) {
+      var th = document.createElement("th"); th.textContent = w; thead.appendChild(th);
+    });
+    tbl.appendChild(thead);
+    for (var i = 0; i < n; i++) {
+      var tr = document.createElement("tr");
+      tr.className = "qrow";
+      var rh = document.createElement("th");
+      rh.className = "rowh"; rh.textContent = ATT_SENTENCE[i];
+      tr.appendChild(rh);
+      for (var j = 0; j < n; j++) {
+        var td = document.createElement("td");
+        td.className = "qcell";
+        var w = M[i][j];
+        td.style.background = heatColor(w);
+        td.textContent = w > 0.001 ? w.toFixed(2).slice(1) : "";
+        tr.appendChild(td);
+      }
+      (function (rowEl) {
+        rowEl.addEventListener("mouseenter", function () {
+          Array.prototype.forEach.call(tbl.querySelectorAll("tr.qrow"), function (r2) { r2.classList.remove("active"); });
+          rowEl.classList.add("active");
+        });
+      })(tr);
+      tbl.appendChild(tr);
+    }
+    container.innerHTML = "";
+    container.appendChild(tbl);
+  }
+  function renderAttn() {
+    buildAttnTable(attentionMatrix(attnSeed, masked), document.getElementById("attnGrid"));
+  }
+  document.getElementById("maskBtn").addEventListener("click", function () {
+    masked = !masked;
+    this.innerHTML = "Causal mask: <b>" + (masked ? "on" : "off") + "</b>";
+    this.classList.toggle("on", masked);
+    renderAttn();
+  });
+  document.getElementById("reseedBtn").addEventListener("click", function () {
+    attnSeed = Math.floor(Math.random() * 100000); renderAttn();
+  });
+  renderAttn();
+
+  // ---------- Step 4: multi-head ----------
+  var HEADS = 4, activeHead = 0;
+  var headBtns = document.getElementById("headBtns");
+  for (var h = 0; h < HEADS; h++) {
+    (function (idx) {
+      var b = document.createElement("button");
+      b.className = "btn" + (idx === 0 ? " on" : "");
+      b.textContent = "Head " + (idx + 1);
+      b.addEventListener("click", function () {
+        activeHead = idx;
+        Array.prototype.forEach.call(headBtns.children, function (c, k) { c.classList.toggle("on", k === idx); });
+        renderHead();
+      });
+      headBtns.appendChild(b);
+    })(h);
+  }
+  function renderHead() {
+    buildAttnTable(attentionMatrix(1000 + activeHead * 31, false), document.getElementById("headGrid"));
+  }
+  renderHead();
+
+  // ---------- Step 5: stacking ----------
+  var layerSlider = document.getElementById("layerSlider");
+  var layerVal = document.getElementById("layerVal");
+  var layerStack = document.getElementById("layerStack");
+  var layerHint = document.getElementById("layerHint");
+  var modelNotes = [
+    [1, 6, "Toy scale — enough to see the idea."],
+    [12, 12, "≈ GPT-2 small / original BERT base territory."],
+    [24, 32, "Mid-size models live around here."],
+    [48, 96, "Frontier-scale stacks reach into the dozens of layers (and beyond)."]
+  ];
+  function renderLayers() {
+    var n = parseInt(layerSlider.value, 10);
+    layerVal.textContent = n;
+    layerStack.innerHTML = "";
+    for (var i = 0; i < n; i++) {
+      var d = document.createElement("div");
+      var shade = 40 + Math.round((i / Math.max(1, n - 1)) * 55);
+      d.style.cssText = "flex:1 0 14px;height:16px;border-radius:3px;background:hsl(28 45% " + shade + "%);";
+      d.title = "Block " + (i + 1);
+      layerStack.appendChild(d);
+    }
+    var note = modelNotes[0][2];
+    for (var m = 0; m < modelNotes.length; m++) { if (n >= modelNotes[m][0]) note = modelNotes[m][2]; }
+    layerHint.textContent = note + " Each block is identical in shape but learns different things.";
+  }
+  layerSlider.addEventListener("input", renderLayers);
+  renderLayers();
+
+  // keyboard nav
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key === "ArrowRight") go(cur + 1);
+    if (e.key === "ArrowLeft") go(cur - 1);
+  });
+
+  go(0);
+})();
+</script>
+</body>
+</html>
