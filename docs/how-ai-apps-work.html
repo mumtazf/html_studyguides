@@ -1,0 +1,596 @@
+---
+title: "How an AI App Like ChatGPT or Claude Works — end to end"
+description: "The whole big picture: what happens long before you type (pre-training, alignment, deployment) and exactly what happens in real time when you send a query (prompt assembly, prefill, and token-by-token generation)."
+date: 2026-09-14
+guide: true
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>How an AI App Works — end to end</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #171a22;
+    --card-2: #1e222c;
+    --text: #e7e3d8;
+    --muted: #9a9485;
+    --border: #2a2f3a;
+    --accent: #d6a066;
+    --accent-2: #7ab8f5;
+    --hot: #e8734a;
+    --cool: #3a4152;
+    --good: #57c98a;
+    --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1.6;
+    padding: 2.5rem 1.25rem 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 52rem; margin: 0 auto; }
+  a { color: var(--accent-2); }
+
+  .kicker {
+    font-family: var(--font-sans);
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 0.6rem;
+  }
+  h1 { font-size: 2.1rem; line-height: 1.15; margin: 0 0 0.6rem; letter-spacing: -0.01em; }
+  .lede { color: var(--muted); font-size: 1.05rem; margin: 0 0 1.5rem; }
+
+  /* stepper */
+  .stepper {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    font-family: var(--font-sans); font-size: 0.78rem;
+    margin: 1.5rem 0 2rem; padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .stepper button {
+    font-family: inherit; font-size: inherit;
+    background: var(--card); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 0.35rem 0.8rem; cursor: pointer; transition: all 120ms;
+  }
+  .stepper button:hover { color: var(--text); border-color: var(--accent); }
+  .stepper button.active { background: var(--accent); color: #1a140c; border-color: var(--accent); font-weight: 600; }
+
+  section.step { display: none; animation: fade 220ms ease; }
+  section.step.show { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .step-head { display: flex; align-items: baseline; gap: 0.6rem; margin: 0 0 0.4rem; }
+  .step-num {
+    font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent);
+    border: 1px solid var(--border); border-radius: 6px; padding: 0.1rem 0.45rem;
+  }
+  .phase-tag {
+    font-family: var(--font-sans); font-size: 0.66rem; letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 0.12rem 0.5rem; border-radius: 999px;
+    border: 1px solid var(--border);
+  }
+  .phase-tag.build { color: var(--accent-2); border-color: rgba(122,184,245,0.5); background: rgba(122,184,245,0.08); }
+  .phase-tag.run { color: var(--good); border-color: rgba(87,201,138,0.5); background: rgba(87,201,138,0.08); }
+
+  h2 { font-size: 1.5rem; margin: 0.4rem 0 0.6rem; letter-spacing: -0.005em; }
+  p { margin: 0.7rem 0; }
+  .muted { color: var(--muted); }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem; margin: 1.25rem 0;
+  }
+  .panel h3 { font-family: var(--font-sans); font-size: 0.78rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.9rem; }
+
+  input[type=text] {
+    width: 100%; font-family: var(--font-mono); font-size: 0.95rem;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.75rem;
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+  .btn {
+    font-family: var(--font-sans); font-size: 0.85rem; cursor: pointer;
+    background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.85rem;
+    transition: all 120ms;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.on { background: var(--accent); color: #1a140c; border-color: var(--accent); font-weight: 600; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+
+  code { font-family: var(--font-mono); font-size: 0.88em;
+    background: var(--card-2); padding: 0.08rem 0.35rem; border-radius: 4px; }
+
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--card);
+    padding: 0.8rem 1rem; border-radius: 0 8px 8px 0; margin: 1.2rem 0;
+  }
+  .callout.blue { border-color: var(--accent-2); }
+  .callout.green { border-color: var(--good); }
+
+  .discuss {
+    border: 1px dashed var(--accent); border-radius: 10px;
+    padding: 0.9rem 1.1rem; margin: 1.3rem 0; background: rgba(214,160,102,0.06);
+  }
+  .discuss h4 { font-family: var(--font-sans); font-size: 0.74rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.5rem; }
+  .discuss ul { margin: 0; padding-left: 1.2rem; }
+  .discuss li { margin: 0.35rem 0; }
+
+  /* flow boxes */
+  .flow { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; }
+  .flow .box {
+    font-family: var(--font-sans); font-size: 0.85rem;
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.9rem;
+    background: var(--card-2); position: relative; transition: all 150ms;
+  }
+  .flow .box b { color: var(--accent-2); }
+  .flow .box .tiny { display: block; font-size: 0.76rem; color: var(--muted); margin-top: 0.15rem; }
+  .flow .arrow { text-align: center; color: var(--muted); font-size: 0.9rem; }
+
+  /* big-picture two-zone timeline */
+  .zone-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .lifecycle .box.dim { opacity: 0.28; filter: grayscale(0.4); }
+  .lifecycle .box.build { border-left: 3px solid var(--accent-2); }
+  .lifecycle .box.run { border-left: 3px solid var(--good); }
+  .zone-label {
+    font-family: var(--font-sans); font-size: 0.68rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); margin: 0.8rem 0 0.2rem;
+  }
+
+  /* context stack */
+  .ctx-stack { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
+  .ctx-item {
+    font-family: var(--font-sans); font-size: 0.85rem;
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.55rem 0.8rem;
+    background: var(--card-2);
+  }
+  .ctx-item .lbl { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 0.2rem; }
+  .ctx-item.sys { border-left: 3px solid var(--accent); }
+  .ctx-item.hist { border-left: 3px solid var(--muted); }
+  .ctx-item.usr { border-left: 3px solid var(--good); }
+  .ctx-item .mono { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text); }
+
+  .tokchips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+  .tokchips .tk {
+    font-family: var(--font-mono); font-size: 0.78rem;
+    padding: 0.15rem 0.4rem; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--accent-2);
+  }
+
+  /* inference demo */
+  .infer-out {
+    font-family: var(--font-serif); font-size: 1rem; line-height: 1.7;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.9rem 1rem; min-height: 5.5rem; margin-top: 0.7rem;
+  }
+  .infer-out .cursor { color: var(--accent); animation: blink 900ms step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .phase-pill {
+    font-family: var(--font-sans); font-size: 0.72rem; padding: 0.15rem 0.55rem;
+    border-radius: 999px; border: 1px solid var(--border); color: var(--muted);
+  }
+  .phase-pill.active { color: #1a140c; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+
+  .cand { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.7rem; }
+  .cand-row { display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-mono); font-size: 0.8rem; }
+  .cand-row .word { width: 6rem; text-align: right; color: var(--text); }
+  .cand-row .barwrap { flex: 1; background: var(--card-2); border-radius: 5px; overflow: hidden; height: 16px; }
+  .cand-row .bar { height: 100%; background: var(--cool); border-radius: 5px; transition: width 200ms; }
+  .cand-row.chosen .word { color: var(--good); font-weight: 700; }
+  .cand-row.chosen .bar { background: var(--good); }
+  .cand-row .pct { width: 3rem; color: var(--muted); }
+
+  .nav { display: flex; justify-content: space-between; margin-top: 2rem;
+    padding-top: 1.2rem; border-top: 1px solid var(--border); }
+
+  footer { margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid var(--border);
+    font-family: var(--font-sans); font-size: 0.75rem; color: var(--muted); text-align: center; }
+
+  .homelink { font-family: var(--font-sans); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<main>
+  <p class="homelink"><a href="{{ '/' | relative_url }}">&larr; All guides</a></p>
+  <p class="kicker">Big-picture primer</p>
+  <h1>How an app like ChatGPT or Claude works</h1>
+  <p class="lede">The full journey, in plain language: everything that happens <b>long before you type</b> to create the model, and everything that happens <b>in real time</b> the moment you hit send. Enough to see the whole picture &mdash; the deep math can come later.</p>
+
+  <nav class="stepper" id="stepper"></nav>
+
+  <!-- STEP 0: big picture -->
+  <section class="step" data-title="Big picture">
+    <div class="step-head"><span class="step-num">00</span><h2>Two very different clocks</h2></div>
+    <p>The single most useful idea: an AI app runs on <b>two separate timelines</b>. One happens <b>once</b>, over months, to build the model. The other happens <b>every single time you send a message</b>, in about a second.</p>
+
+    <div class="panel">
+      <h3>The whole lifecycle</h3>
+      <div class="zone-toggle">
+        <button class="btn on" id="zoneAll">Show all</button>
+        <button class="btn" id="zoneBuild">Build time (once)</button>
+        <button class="btn" id="zoneRun">Run time (every query)</button>
+      </div>
+
+      <div class="zone-label">Build time &mdash; done once, ahead of time, costs millions</div>
+      <div class="flow lifecycle" id="lifecycle">
+        <div class="box build" data-zone="build"><b>1. Pre-training</b><span class="tiny">Read a huge slice of the internet; learn to predict the next word. Produces a raw "base model".</span></div>
+        <div class="arrow" data-zone="build">&darr;</div>
+        <div class="box build" data-zone="build"><b>2. Post-training / alignment</b><span class="tiny">Teach it to follow instructions and be helpful, honest, and safe (SFT + RLHF).</span></div>
+        <div class="arrow" data-zone="build">&darr;</div>
+        <div class="box build" data-zone="build"><b>3. Evaluate &amp; freeze</b><span class="tiny">Test it, then lock the weights. The finished model is now a fixed file.</span></div>
+        <div class="arrow" data-zone="build">&darr;</div>
+        <div class="box build" data-zone="build"><b>4. Deploy to servers</b><span class="tiny">Load those frozen weights onto GPU servers behind an API.</span></div>
+      </div>
+
+      <div class="zone-label">Run time &mdash; happens live, on every message you send</div>
+      <div class="flow lifecycle" id="lifecycle2">
+        <div class="box run" data-zone="run"><b>5. Your query arrives</b><span class="tiny">Your text is bundled with hidden instructions and the chat history.</span></div>
+        <div class="arrow" data-zone="run">&darr;</div>
+        <div class="box run" data-zone="run"><b>6. Real-time inference</b><span class="tiny">The GPU server runs the frozen model and generates a reply one token at a time.</span></div>
+        <div class="arrow" data-zone="run">&darr;</div>
+        <div class="box run" data-zone="run"><b>7. Stream back &amp; repeat</b><span class="tiny">Words stream to your screen. Your next message runs the whole thing again.</span></div>
+      </div>
+    </div>
+
+    <div class="callout blue">The model does <b>not</b> learn from your chat in real time. Training already happened. When you talk to it, the weights are frozen &mdash; it's just running a fixed function very fast.</div>
+
+    <div class="discuss">
+      <h4>Kick off the discussion</h4>
+      <ul>
+        <li>Why split it this way? What's fundamentally different about building the model vs. answering one message?</li>
+        <li>If the model is frozen at run time, how does it seem to "remember" what you said earlier in the chat?</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- STEP 1: pre-training -->
+  <section class="step" data-title="Pre-training">
+    <div class="step-head"><span class="step-num">01</span><span class="phase-tag build">Build time</span></div>
+    <h2>Pre-training: learning language from the internet</h2>
+    <p>It starts with a model that knows nothing &mdash; billions of random numbers (<b>parameters</b>). You show it an enormous amount of text and give it one relentless game: <b>predict the next word</b>.</p>
+    <div class="panel">
+      <h3>The next-word game</h3>
+      <div class="flow">
+        <div class="box">Input: <span class="mono">"The capital of France is ___"</span></div>
+        <div class="arrow">&darr; model guesses</div>
+        <div class="box">Guess: <span class="mono">"London"</span> &nbsp;&rarr;&nbsp; wrong. Nudge the numbers a little.</div>
+        <div class="arrow">&darr; repeat trillions of times</div>
+        <div class="box">Eventually: <span class="mono">"Paris"</span> &nbsp;&rarr;&nbsp; right, most of the time.</div>
+      </div>
+      <p class="muted" style="font-size:0.85rem;margin-top:0.8rem;">Do this across trillions of words and, to get good at predicting text, the model is forced to absorb grammar, facts, styles, and a surprising amount of reasoning.</p>
+    </div>
+    <div class="callout">The output of this stage is a <b>base model</b>: great at continuing text, but not yet good at being a helpful assistant. It'll happily complete your sentence instead of answering your question.</div>
+    <div class="discuss">
+      <h4>Talking point</h4>
+      <ul>
+        <li>Nobody hand-labels "correct answers" here &mdash; the text itself is the answer key. Why is that such a big deal for scaling?</li>
+        <li>This is the step our <a href="{{ '/train-llm-simulator.html' | relative_url }}">training decision simulator</a> walks through (data, scale, parallelism).</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- STEP 2: post-training -->
+  <section class="step" data-title="Alignment">
+    <div class="step-head"><span class="step-num">02</span><span class="phase-tag build">Build time</span></div>
+    <h2>Post-training: turning a text predictor into an assistant</h2>
+    <p>A base model predicts plausible text, but that isn't the same as being <i>useful</i>. Post-training reshapes its behavior in two moves.</p>
+    <div class="panel">
+      <h3>Two steps to a helpful assistant</h3>
+      <div class="flow">
+        <div class="box"><b>Supervised fine-tuning (SFT)</b><span class="tiny">Humans write lots of example conversations showing good answers. The model imitates them, learning the "assistant" style.</span></div>
+        <div class="arrow">&darr;</div>
+        <div class="box"><b>Learning from preferences (RLHF)</b><span class="tiny">Show humans two answers; they pick the better one. Train the model to produce more of what people prefer &mdash; helpful, honest, safe.</span></div>
+      </div>
+    </div>
+    <div class="callout green">This is where the model learns to <b>answer instead of just continue</b>, to refuse harmful requests, and to adopt the tone you recognize as "ChatGPT" or "Claude". Same underlying network &mdash; different behavior.</div>
+    <div class="discuss">
+      <h4>Talking point</h4>
+      <ul>
+        <li>Pre-training teaches <i>knowledge</i>; alignment shapes <i>behavior</i>. Why can't you get the second one just by adding more raw internet text?</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- STEP 3: deploy -->
+  <section class="step" data-title="Deploy">
+    <div class="step-head"><span class="step-num">03</span><span class="phase-tag build">Build time</span></div>
+    <h2>Freeze, package, and deploy</h2>
+    <p>Once the model passes its evals, its parameters are <b>frozen</b> into a fixed set of files (the "weights"). Nothing about the model changes after this until the next version is trained.</p>
+    <div class="panel">
+      <h3>From trained model to a live service</h3>
+      <div class="flow">
+        <div class="box"><b>Frozen weights</b><span class="tiny">Hundreds of gigabytes of numbers &mdash; the finished model.</span></div>
+        <div class="arrow">&darr; loaded onto</div>
+        <div class="box"><b>GPU servers</b><span class="tiny">Fast chips hold the weights in memory, ready to run the model on demand.</span></div>
+        <div class="arrow">&darr; wrapped in</div>
+        <div class="box"><b>An API + the app</b><span class="tiny">The website/phone app sends your message to the server and shows the reply.</span></div>
+      </div>
+    </div>
+    <div class="callout">Everything above happens <b>before you ever open the app</b>. From here on, we're on the second clock: what happens when <i>you</i> send a message.</div>
+  </section>
+
+  <!-- STEP 4: query arrives -->
+  <section class="step" data-title="Your query">
+    <div class="step-head"><span class="step-num">04</span><span class="phase-tag run">Run time</span></div>
+    <h2>You hit send: building the real prompt</h2>
+    <p>Here's a surprise: the model never sees just your message. Before anything runs, the app quietly <b>assembles a bigger prompt</b> &mdash; hidden instructions, the earlier conversation, and then your text.</p>
+    <div class="panel">
+      <h3>Try it &mdash; type a question</h3>
+      <input type="text" id="userQuery" value="How do I make cold brew coffee?" />
+      <p class="muted" style="font-size:0.82rem;margin:0.6rem 0 0;">Here's what actually gets sent to the model:</p>
+      <div class="ctx-stack" id="ctxStack">
+        <div class="ctx-item sys"><span class="lbl">System prompt (hidden)</span><span class="mono">You are a helpful assistant. Be clear and concise. Today is Monday.</span></div>
+        <div class="ctx-item hist"><span class="lbl">Conversation so far</span><span class="mono">User: Hi!  &nbsp;·&nbsp;  Assistant: Hello! How can I help?</span></div>
+        <div class="ctx-item usr"><span class="lbl">Your new message</span><span class="mono" id="ctxUser">How do I make cold brew coffee?</span></div>
+      </div>
+      <div class="row" style="margin-top:0.9rem;">
+        <button class="btn" id="tokBtn">Tokenize &amp; send &rarr;</button>
+        <span class="muted" id="tokInfo" style="font-size:0.85rem;"></span>
+      </div>
+      <div class="tokchips" id="tokChips"></div>
+    </div>
+    <div class="callout blue">That hidden <b>system prompt</b> plus the <b>chat history</b> is why the model feels like it "remembers" you: the whole conversation is re-sent every turn. This bundle has to fit inside the model's <b>context window</b> (its maximum readable length).</div>
+    <div class="discuss">
+      <h4>Talking point</h4>
+      <ul>
+        <li>If the history is re-sent every message, what happens in a very long chat? (Hint: it can overflow the context window.)</li>
+        <li>Who writes the system prompt, and how much power does it have over the model's behavior?</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- STEP 5: inference -->
+  <section class="step" data-title="Inference">
+    <div class="step-head"><span class="step-num">05</span><span class="phase-tag run">Run time</span></div>
+    <h2>Real-time inference: writing one token at a time</h2>
+    <p>Now the GPU server runs the frozen model on that prompt. This is <b>inference</b>, and it happens in two phases.</p>
+    <div class="panel">
+      <h3>Watch it generate</h3>
+      <div class="row" style="gap:0.4rem;margin-bottom:0.3rem;">
+        <span class="phase-pill" id="pillPrefill">1 · Prefill (read the prompt)</span>
+        <span class="phase-pill" id="pillDecode">2 · Decode (write the reply)</span>
+      </div>
+      <div class="infer-out" id="inferOut"><span class="muted">Press generate to watch the model read your prompt, then write its answer token by token.</span></div>
+      <div class="cand" id="candBox" style="display:none;">
+        <p class="muted" style="font-size:0.78rem;margin:0.2rem 0;">Picking the next token &mdash; the model scores every option; the app samples one:</p>
+        <div id="candRows"></div>
+      </div>
+      <div class="row" style="margin-top:0.9rem;">
+        <button class="btn on" id="genBtn">Generate response</button>
+        <button class="btn" id="genReset" disabled>Reset</button>
+      </div>
+    </div>
+    <div class="callout">
+      <b>Prefill:</b> the model reads your whole prompt in one pass and builds a memory of it (the <b>KV cache</b>). <b>Decode:</b> it then produces the answer <b>one token at a time</b>, each time feeding its own last word back in to pick the next. That loop is why longer answers take longer, and why replies stream in.
+    </div>
+    <div class="discuss">
+      <h4>Talking point</h4>
+      <ul>
+        <li>Generation is literally "predict the next token" on repeat &mdash; the same game from pre-training. Where does the feeling of <i>reasoning</i> come from?</li>
+        <li>The model samples from its top guesses instead of always taking #1. Why would a little randomness make answers feel more natural?</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- STEP 6: beyond -->
+  <section class="step" data-title="Beyond a reply">
+    <div class="step-head"><span class="step-num">06</span><span class="phase-tag run">Run time</span></div>
+    <h2>Beyond a single reply: tools, memory, and safety</h2>
+    <p>Modern apps wrap the raw model in extra machinery so it can do more than autocomplete.</p>
+    <div class="panel">
+      <h3>Common add-ons around the model</h3>
+      <div class="flow">
+        <div class="box"><b>Retrieval (RAG)</b><span class="tiny">Look up relevant documents and paste them into the prompt, so the model can answer from sources it wasn't trained on.</span></div>
+        <div class="box"><b>Tools / function calling</b><span class="tiny">Let the model call a calculator, search the web, or run code &mdash; then read the result and keep going.</span></div>
+        <div class="box"><b>Safety &amp; moderation</b><span class="tiny">Extra checks on the input and the output to catch harmful content before it reaches you.</span></div>
+        <div class="box"><b>Streaming &amp; the loop</b><span class="tiny">Tokens stream to your screen; your next message restarts the whole run-time path from step 4.</span></div>
+      </div>
+    </div>
+    <div class="callout green">Put it together: months of <b>training</b> create a frozen brain; a fast <b>serving</b> stack runs it in real time; and a ring of <b>tools and guardrails</b> turns that brain into a product you can actually chat with.</div>
+    <div class="discuss">
+      <h4>Wrap-up questions</h4>
+      <ul>
+        <li>Which of these stages surprised you most about what happens "under the hood"?</li>
+        <li>If a chatbot gives a wrong fact, which stage is usually to blame &mdash; training, retrieval, or the prompt?</li>
+        <li>Where would you add a guardrail: before the model runs, after, or both?</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="nav">
+    <button class="btn" id="prevBtn">&larr; Previous</button>
+    <button class="btn" id="nextBtn">Next &rarr;</button>
+  </div>
+
+  <footer>Mumtaz Fatima · Created w Claude · Hosted on GitHub Pages · High-level primer, adapted for discussion</footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- stepper ----------
+  var steps = Array.prototype.slice.call(document.querySelectorAll("section.step"));
+  var stepper = document.getElementById("stepper");
+  var cur = 0;
+  steps.forEach(function (s, i) {
+    var b = document.createElement("button");
+    b.textContent = i + " · " + s.dataset.title;
+    b.addEventListener("click", function () { go(i); });
+    stepper.appendChild(b);
+  });
+  function go(i) {
+    cur = Math.max(0, Math.min(steps.length - 1, i));
+    steps.forEach(function (s, k) { s.classList.toggle("show", k === cur); });
+    Array.prototype.forEach.call(stepper.children, function (b, k) { b.classList.toggle("active", k === cur); });
+    document.getElementById("prevBtn").disabled = cur === 0;
+    document.getElementById("nextBtn").disabled = cur === steps.length - 1;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  document.getElementById("prevBtn").addEventListener("click", function () { go(cur - 1); });
+  document.getElementById("nextBtn").addEventListener("click", function () { go(cur + 1); });
+
+  // ---------- Step 0: zone filter ----------
+  var allBoxes = Array.prototype.slice.call(document.querySelectorAll(".lifecycle [data-zone]"));
+  var zBtns = { all: document.getElementById("zoneAll"), build: document.getElementById("zoneBuild"), run: document.getElementById("zoneRun") };
+  function setZone(z) {
+    Object.keys(zBtns).forEach(function (k) { zBtns[k].classList.toggle("on", k === z); });
+    allBoxes.forEach(function (el) {
+      var match = z === "all" || el.getAttribute("data-zone") === z;
+      el.classList.toggle("dim", !match);
+    });
+  }
+  zBtns.all.addEventListener("click", function () { setZone("all"); });
+  zBtns.build.addEventListener("click", function () { setZone("build"); });
+  zBtns.run.addEventListener("click", function () { setZone("run"); });
+
+  // ---------- Step 4: prompt assembly + tokenize ----------
+  var qEl = document.getElementById("userQuery");
+  var ctxUser = document.getElementById("ctxUser");
+  var tokBtn = document.getElementById("tokBtn");
+  var tokInfo = document.getElementById("tokInfo");
+  var tokChips = document.getElementById("tokChips");
+
+  qEl.addEventListener("input", function () {
+    ctxUser.textContent = qEl.value || "(empty)";
+    tokChips.innerHTML = "";
+    tokInfo.textContent = "";
+  });
+
+  // crude illustrative tokenizer: split on spaces + punctuation, ~ sub-word feel
+  function fakeTokenize(str) {
+    var raw = str.trim().split(/(\s+|[.,!?;:])/).filter(function (t) { return t && !/^\s+$/.test(t); });
+    var out = [];
+    raw.forEach(function (w) {
+      if (w.length > 6) {
+        out.push(w.slice(0, Math.ceil(w.length / 2)));
+        out.push(w.slice(Math.ceil(w.length / 2)));
+      } else {
+        out.push(w);
+      }
+    });
+    return out;
+  }
+
+  tokBtn.addEventListener("click", function () {
+    var sys = 14, hist = 12; // illustrative token counts for the hidden parts
+    var userToks = fakeTokenize(qEl.value);
+    tokChips.innerHTML = "";
+    userToks.forEach(function (t) {
+      var s = document.createElement("span");
+      s.className = "tk";
+      s.textContent = t;
+      tokChips.appendChild(s);
+    });
+    var total = sys + hist + userToks.length;
+    tokInfo.innerHTML = "&asymp; <b>" + total + " tokens</b> sent (" + sys + " system + " + hist + " history + " + userToks.length + " yours). The server turns these into numbers and runs the model.";
+  });
+
+  // ---------- Step 5: inference demo ----------
+  var genBtn = document.getElementById("genBtn");
+  var resetBtn = document.getElementById("genReset");
+  var out = document.getElementById("inferOut");
+  var pillPre = document.getElementById("pillPrefill");
+  var pillDec = document.getElementById("pillDecode");
+  var candBox = document.getElementById("candBox");
+  var candRows = document.getElementById("candRows");
+
+  var RESPONSE = ["Coarsely", "grind", "your", "coffee,", "steep", "it", "in", "cold", "water", "for", "12", "hours,", "then", "strain", "."];
+  // illustrative "next token" candidate sets for the first few decode steps
+  var CANDIDATES = [
+    [["Coarsely", 0.62], ["Start", 0.24], ["First", 0.14]],
+    [["grind", 0.71], ["chop", 0.17], ["crush", 0.12]],
+    [["your", 0.55], ["the", 0.35], ["some", 0.10]],
+    [["coffee,", 0.68], ["beans,", 0.25], ["grounds,", 0.07]]
+  ];
+
+  var timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  function reset() {
+    clearTimers();
+    out.innerHTML = '<span class="muted">Press generate to watch the model read your prompt, then write its answer token by token.</span>';
+    pillPre.classList.remove("active");
+    pillDec.classList.remove("active");
+    candBox.style.display = "none";
+    candRows.innerHTML = "";
+    genBtn.disabled = false;
+    resetBtn.disabled = true;
+  }
+
+  function renderCandidates(set, chosenWord) {
+    candRows.innerHTML = "";
+    set.forEach(function (pair) {
+      var row = document.createElement("div");
+      row.className = "cand-row" + (pair[0] === chosenWord ? " chosen" : "");
+      row.innerHTML =
+        '<span class="word">' + pair[0] + '</span>' +
+        '<span class="barwrap"><span class="bar" style="width:' + Math.round(pair[1] * 100) + '%"></span></span>' +
+        '<span class="pct">' + Math.round(pair[1] * 100) + '%</span>';
+      candRows.appendChild(row);
+    });
+  }
+
+  function generate() {
+    reset();
+    genBtn.disabled = true;
+    resetBtn.disabled = false;
+
+    // Phase 1: prefill
+    pillPre.classList.add("active");
+    out.innerHTML = '<span class="muted">Reading your prompt&hellip; building the KV cache.</span>';
+
+    timers.push(setTimeout(function () {
+      // Phase 2: decode
+      pillPre.classList.remove("active");
+      pillDec.classList.add("active");
+      out.innerHTML = '<span class="cursor">&#9611;</span>';
+      candBox.style.display = "block";
+
+      var text = "";
+      var i = 0;
+      function stepToken() {
+        if (i >= RESPONSE.length) {
+          out.innerHTML = text;
+          pillDec.classList.remove("active");
+          candBox.style.display = "none";
+          genBtn.disabled = false;
+          return;
+        }
+        // show candidate picker for the first few tokens, slower; then speed up
+        var hasCand = i < CANDIDATES.length;
+        if (hasCand) renderCandidates(CANDIDATES[i], RESPONSE[i]);
+        text += (i === 0 ? "" : " ") + RESPONSE[i];
+        out.innerHTML = text + ' <span class="cursor">&#9611;</span>';
+        i++;
+        var delay = hasCand ? 700 : 180;
+        timers.push(setTimeout(stepToken, delay));
+      }
+      stepToken();
+    }, 900));
+  }
+
+  genBtn.addEventListener("click", generate);
+  resetBtn.addEventListener("click", reset);
+
+  // init
+  go(0);
+})();
+</script>
+</body>
+</html>
